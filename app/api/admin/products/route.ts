@@ -1,136 +1,156 @@
 // app/api/admin/products/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import {
-  createProduct,
-  updateProduct,
-  deleteProduct,
-  getProductBySlug,
-} from "../../../../lib/products";
-import { revalidatePath } from "next/cache";
+import { prisma } from "../../../../lib/prisma";
 
-function safeInt(value: FormDataEntryValue | null): number | null {
-  if (typeof value !== "string") return null;
-  const n = parseInt(value, 10);
-  return Number.isNaN(n) ? null : n;
-}
+type AdminMode = "create" | "update" | "delete";
 
-async function revalidateAll() {
-  revalidatePath("/");
-  revalidatePath("/products");
-  revalidatePath("/admin/products");
+function getMode(formData: FormData): AdminMode | null {
+  const raw = formData.get("mode");
+  if (raw === "create" || raw === "update" || raw === "delete") {
+    return raw;
+  }
+  return null;
 }
 
 export async function POST(req: NextRequest) {
   const formData = await req.formData();
-  const mode = formData.get("mode");
+  const mode = getMode(formData);
 
-  if (mode === "create") {
-    const slug = formData.get("slug");
-    const name = formData.get("name");
-    const description = formData.get("description");
-    const price = safeInt(formData.get("price"));
-    const stock = safeInt(formData.get("stock"));
-    const imageUrl = formData.get("imageUrl");
-    const featuredRaw = formData.get("featured");
-
-    if (
-      typeof slug !== "string" ||
-      typeof name !== "string" ||
-      typeof description !== "string" ||
-      typeof imageUrl !== "string" ||
-      price === null ||
-      stock === null
-    ) {
-      return new NextResponse("Invalid payload", { status: 400 });
-    }
-
-    // default currency IDR untuk sekarang
-    const featured = !!featuredRaw;
-
-    await createProduct({
-      slug,
-      name,
-      description,
-      price,
-      currency: "IDR",
-      stock,
-      imageUrl,
-      featured,
-    });
-
-    await revalidateAll();
-
-    const url = new URL(req.url);
-    return NextResponse.redirect(new URL("/admin/products", url.origin));
+  if (!mode) {
+    return NextResponse.json(
+      { error: "Invalid mode" },
+      { status: 400 }
+    );
   }
 
-  if (mode === "update") {
-    const id = formData.get("id");
-    if (typeof id !== "string") {
-      return new NextResponse("Missing id", { status: 400 });
+  try {
+    if (mode === "create") {
+      const slug = formData.get("slug");
+      const name = formData.get("name");
+      const description = formData.get("description");
+      const priceRaw = formData.get("price");
+      const stockRaw = formData.get("stock");
+      const imageUrl = formData.get("imageUrl");
+      const featuredRaw = formData.get("featured");
+
+      if (
+        typeof slug !== "string" ||
+        typeof name !== "string" ||
+        typeof description !== "string" ||
+        typeof priceRaw !== "string" ||
+        typeof stockRaw !== "string" ||
+        typeof imageUrl !== "string"
+      ) {
+        return NextResponse.json(
+          { error: "Missing or invalid fields" },
+          { status: 400 }
+        );
+      }
+
+      const price = Number(priceRaw);
+      const stock = Number(stockRaw);
+
+      if (!Number.isFinite(price) || !Number.isFinite(stock)) {
+        return NextResponse.json(
+          { error: "Price and stock must be numeric" },
+          { status: 400 }
+        );
+      }
+
+      const featured = featuredRaw != null;
+
+      await prisma.product.create({
+        data: {
+          slug,
+          name,
+          description,
+          price: Math.round(price),
+          currency: "IDR",
+          stock: Math.round(stock),
+          imageUrl,
+          featured,
+        },
+      });
     }
 
-    const data: any = {};
+    if (mode === "update") {
+      const id = formData.get("id");
+      if (typeof id !== "string" || !id) {
+        return NextResponse.json(
+          { error: "Missing product id" },
+          { status: 400 }
+        );
+      }
 
-    const price = safeInt(formData.get("price"));
-    const stock = safeInt(formData.get("stock"));
-    const toggleFeatured = formData.get("toggleFeatured");
+      const priceRaw = formData.get("price");
+      const stockRaw = formData.get("stock");
+      const featuredValue = formData.get("featuredValue");
 
-    if (price !== null) data.price = price;
-    if (stock !== null) data.stock = stock;
+      const data: {
+        price?: number;
+        stock?: number;
+        featured?: boolean;
+      } = {};
 
-    if (toggleFeatured) {
-      // load current featured, lalu toggle
-      // (optional safety: bisa langsung pakai field featured dari form, tapi ini lebih konsisten)
-      const current = await (async () => {
-        // kita perlu slug atau produk, tapi cuma punya id
-        // simple: panggil prisma direct, tapi supaya tetap di layer ini,
-        // kita pakai trick: update dengan featured:true/false tanpa baca sebelumnya
-        // => lebih praktis: kirim nilai featured langsung dari UI
-        return null;
-      })();
-      // karena trick di atas ribet, kita pakai cara lebih simpel:
-      // di UI kita tidak kirim nilai featured baru, maka di sini saja kita
-      // treat toggle sebagai "flip" dengan 2 step: baca dulu via prisma.
-      // Tapi supaya tidak import prisma langsung, kita lakukan gini:
-      // -> lebih sederhana: kirim field "featuredValue" dari form kalau mau,
-      // tapi kita sudah terlanjur buat UI
-      // Jadi: ubah strategi: UI akan kirim "featuredNext" kalau ada.
+      if (typeof priceRaw === "string" && priceRaw !== "") {
+        const price = Number(priceRaw);
+        if (!Number.isFinite(price)) {
+          return NextResponse.json(
+            { error: "Price must be numeric" },
+            { status: 400 }
+          );
+        }
+        data.price = Math.round(price);
+      }
 
-      // Namun supaya kode ini jalan sekarang: kalau toggleFeatured dikirim,
-      // kita abaikan, biarkan data kosong (atau bisa di-improve nanti).
+      if (typeof stockRaw === "string" && stockRaw !== "") {
+        const stock = Number(stockRaw);
+        if (!Number.isFinite(stock)) {
+          return NextResponse.json(
+            { error: "Stock must be numeric" },
+            { status: 400 }
+          );
+        }
+        data.stock = Math.round(stock);
+      }
+
+      if (typeof featuredValue === "string") {
+        data.featured = featuredValue === "true";
+      }
+
+      if (Object.keys(data).length === 0) {
+        // tidak ada perubahan, langsung redirect saja
+      } else {
+        await prisma.product.update({
+          where: { id },
+          data,
+        });
+      }
     }
 
-    // OPTIONAL: kalau kamu mau juga support pengiriman "featuredValue"
-    const featuredValue = formData.get("featuredValue");
-    if (typeof featuredValue === "string") {
-      data.featured = featuredValue === "true";
+    if (mode === "delete") {
+      const id = formData.get("id");
+      if (typeof id !== "string" || !id) {
+        return NextResponse.json(
+          { error: "Missing product id" },
+          { status: 400 }
+        );
+      }
+
+      await prisma.product.delete({
+        where: { id },
+      });
     }
 
-    if (Object.keys(data).length === 0) {
-      const url = new URL(req.url);
-      return NextResponse.redirect(new URL("/admin/products", url.origin));
-    }
-
-    await updateProduct(id, data);
-    await revalidateAll();
-
+    // Sukses -> redirect balik ke /admin/products
     const url = new URL(req.url);
-    return NextResponse.redirect(new URL("/admin/products", url.origin));
+    const redirectUrl = new URL("/admin/products", url.origin);
+    return NextResponse.redirect(redirectUrl);
+  } catch (error) {
+    console.error("Admin products error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
-
-  if (mode === "delete") {
-    const id = formData.get("id");
-    if (typeof id !== "string") {
-      return new NextResponse("Missing id", { status: 400 });
-    }
-
-    await deleteProduct(id);
-    await revalidateAll();
-
-    const url = new URL(req.url);
-    return NextResponse.redirect(new URL("/admin/products", url.origin));
-  }
-
-  return new NextResponse("Invalid mode", { status: 400 });
 }

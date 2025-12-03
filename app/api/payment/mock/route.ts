@@ -1,6 +1,9 @@
 // app/api/payment/mock/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { updateOrderStatus } from "../../../../lib/orders";
+import {
+  updateOrderStatus,
+  type OrderStatus,
+} from "../../../../lib/orders";
 
 export async function POST(req: NextRequest) {
   let orderId: string | null = null;
@@ -9,6 +12,7 @@ export async function POST(req: NextRequest) {
   const contentType = req.headers.get("content-type") || "";
 
   if (contentType.includes("application/json")) {
+    // Hit dari backend / Postman pakai JSON
     const body = await req.json().catch(() => null);
     if (body && typeof body.orderId === "string") {
       orderId = body.orderId;
@@ -17,6 +21,7 @@ export async function POST(req: NextRequest) {
       status = body.status;
     }
   } else {
+    // Hit dari <form> (form-data)
     const formData = await req.formData();
     const oid = formData.get("orderId");
     const st = formData.get("status");
@@ -31,7 +36,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const normalizedStatus = status.toUpperCase();
+  const normalizedStatus = status.toUpperCase() as OrderStatus;
   if (!["PENDING", "PAID", "FAILED"].includes(normalizedStatus)) {
     return NextResponse.json(
       { error: "Invalid status. Use PENDING | PAID | FAILED" },
@@ -39,10 +44,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const updated = await updateOrderStatus(
-    orderId,
-    normalizedStatus as any
-  );
+  const updated = await updateOrderStatus(orderId, normalizedStatus);
 
   if (!updated) {
     return NextResponse.json(
@@ -51,6 +53,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Kalau request minta JSON (API/backend)
   const accept = req.headers.get("accept") || "";
   if (accept.includes("application/json")) {
     return NextResponse.json({
@@ -60,6 +63,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // Default: redirect ke admin orders (dipakai dari UI admin)
   const url = new URL(req.url);
   const redirectUrl = new URL("/admin/orders", url.origin);
   return NextResponse.redirect(redirectUrl);

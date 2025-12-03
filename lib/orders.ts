@@ -1,63 +1,76 @@
 // lib/orders.ts
 import { prisma } from "./prisma";
-import type { Order as PrismaOrder, OrderStatus as PrismaOrderStatus } from "@prisma/client";
 
-export type OrderStatus = PrismaOrderStatus;
-export type Order = PrismaOrder;
+export type OrderStatus = "PENDING" | "PAID" | "FAILED";
 
-/**
- * Create order baru
- */
+export type Order = {
+  id: string;
+  productSlug: string;
+  email: string;
+  notes: string | null;
+  status: OrderStatus;
+  createdAt: Date;
+};
+
+function mapOrder(row: {
+  id: string;
+  productSlug: string;
+  email: string;
+  notes: string | null;
+  status: string;
+  createdAt: Date;
+}): Order {
+  return {
+    id: row.id,
+    productSlug: row.productSlug,
+    email: row.email,
+    notes: row.notes,
+    status: row.status as OrderStatus,
+    createdAt: row.createdAt,
+  };
+}
+
+// Create order baru
 export async function createOrder(params: {
   productSlug: string;
   email: string;
   notes?: string;
 }): Promise<Order> {
-  const order = await prisma.order.create({
+  const row = await prisma.order.create({
     data: {
       productSlug: params.productSlug,
       email: params.email,
-      notes: params.notes?.trim() || undefined,
-      // status & createdAt otomatis dari schema
+      notes: params.notes?.trim() || null,
     },
   });
 
-  return order;
+  return mapOrder(row);
 }
 
-/**
- * Ambil order by ID
- */
+// Ambil order by ID
 export async function getOrderById(id: string): Promise<Order | null> {
-  return prisma.order.findUnique({
+  const row = await prisma.order.findUnique({
     where: { id },
   });
+  return row ? mapOrder(row) : null;
 }
 
-/**
- * Ambil semua order (terbaru di atas)
- */
+// Ambil semua order (paling baru di atas)
 export async function getAllOrders(): Promise<Order[]> {
-  return prisma.order.findMany({
+  const rows = await prisma.order.findMany({
     orderBy: { createdAt: "desc" },
   });
+  return rows.map(mapOrder);
 }
 
-/**
- * Update status order
- */
+// Update status order
 export async function updateOrderStatus(
   id: string,
   status: OrderStatus
 ): Promise<Order | null> {
-  try {
-    const order = await prisma.order.update({
-      where: { id },
-      data: { status },
-    });
-    return order;
-  } catch (e) {
-    // kalau ID tidak ada, Prisma lempar error, kita balikin null
-    return null;
-  }
+  const row = await prisma.order.update({
+    where: { id },
+    data: { status },
+  });
+  return row ? mapOrder(row) : null;
 }
