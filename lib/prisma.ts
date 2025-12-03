@@ -5,22 +5,30 @@ import pkg from "pg";
 
 const { Pool } = pkg;
 
+const connectionString =
+  process.env.POSTGRES_PRISMA_URL ??
+  process.env.POSTGRES_URL_NON_POOLING ??
+  process.env.DATABASE_URL ??
+  "";
+
+if (!connectionString) {
+  throw new Error(
+    "Missing DB connection string. Set POSTGRES_PRISMA_URL or POSTGRES_URL_NON_POOLING or DATABASE_URL."
+  );
+}
+
+const pool = new Pool({ connectionString });
+const adapter = new PrismaPg(pool);
+
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
-
-// Pool Postgres pakai DATABASE_URL dari .env
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-const adapter = new PrismaPg(pool);
 
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
     adapter,
-    log: ["warn", "error"], // boleh tambah "query" kalau mau debug
+    log: ["warn", "error"],
   });
 
 if (process.env.NODE_ENV !== "production") {
