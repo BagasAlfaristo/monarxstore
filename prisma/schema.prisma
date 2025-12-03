@@ -6,12 +6,26 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // url diambil dari prisma.config.ts (PRISMA_DATABASE_URL)
 }
 
 enum OrderStatus {
   PENDING
   PAID
   FAILED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  isAdmin      Boolean  @default(false)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  orders       Order[]
 }
 
 model Product {
@@ -40,4 +54,8 @@ model Order {
   createdAt   DateTime    @default(now())
 
   product     Product     @relation(fields: [productSlug], references: [slug])
+
+  // relasi ke User (optional biar gak ganggu order lama)
+  userId      String?
+  user        User?       @relation(fields: [userId], references: [id])
 }

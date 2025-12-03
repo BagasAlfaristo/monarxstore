@@ -1,4 +1,7 @@
 // app/page.tsx
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import Link from "next/link";
 import { getFeaturedProducts, formatPrice } from "../lib/products";
 
@@ -77,12 +80,18 @@ export default async function Home() {
 
           {/* Auth */}
           <div className="hidden items-center gap-2 md:flex">
-            <button className="rounded-full border border-slate-200 px-4 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
+            <Link
+              href="/login"
+              className="rounded-full border border-slate-200 px-4 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
               Sign in
-            </button>
-            <button className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-black">
+            </Link>
+            <Link
+              href="/register"
+              className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-black"
+            >
               Sign up
-            </button>
+            </Link>
           </div>
         </div>
       </header>

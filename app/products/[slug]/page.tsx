@@ -1,4 +1,7 @@
 // app/products/[slug]/page.tsx
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProductBySlug, formatPrice } from "../../../lib/products";
