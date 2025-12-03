@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String
+  price       Int
+  currency    String
+  stock       Int
+  imageUrl    String
+  featured    Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orders      Order[]
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  productSlug String
+  email       String
+  notes       String?
+  status      OrderStatus @default(PENDING)
+  createdAt   DateTime    @default(now())
+
+  product     Product     @relation(fields: [productSlug], references: [slug])
+}
