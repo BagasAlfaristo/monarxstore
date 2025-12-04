@@ -1,5 +1,4 @@
-// app/api/auth/register/route.ts
-
+//home/zyan/Coding/monarxstore/monarxstore/app/api/auth/register/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/auth";
@@ -8,19 +7,19 @@ export async function POST(request: Request) {
   const contentType = request.headers.get("content-type") ?? "";
 
   let email = "";
-  let name = "";
   let password = "";
+  let name = "";
 
   if (contentType.includes("application/json")) {
     const body = await request.json();
     email = (body.email ?? "").toString().trim().toLowerCase();
-    name = (body.name ?? "").toString().trim();
     password = (body.password ?? "").toString();
+    name = (body.name ?? "").toString().trim();
   } else {
     const formData = await request.formData();
     email = (formData.get("email") ?? "").toString().trim().toLowerCase();
-    name = (formData.get("name") ?? "").toString().trim();
     password = (formData.get("password") ?? "").toString();
+    name = (formData.get("name") ?? "").toString().trim();
   }
 
   if (!email || !password) {
@@ -44,17 +43,25 @@ export async function POST(request: Request) {
     data: {
       email,
       name: name || null,
-      passwordHash: hashed,   // ⬅️ ini yang benar
-      // isAdmin: true, // kalau mau jadikan admin manual
+      passwordHash: hashed,
+    },
+    select: {
+      id: true,
+      email: true,
+      name: true,
     },
   });
 
-  return NextResponse.json(
-    {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-    },
-    { status: 201 }
-  );
+  // Cek apakah client ingin JSON (misalnya fetch dari JS)
+  const accept = request.headers.get("accept") ?? "";
+  const wantsJson = accept.includes("application/json");
+
+  if (wantsJson) {
+    // dipakai kalau nanti kamu mau panggil dari frontend via fetch()
+    return NextResponse.json(user);
+  }
+
+  // default: redirect ke halaman login untuk form biasa
+  const redirectUrl = new URL("/login?registered=1", request.url);
+  return NextResponse.redirect(redirectUrl);
 }

@@ -1,45 +1,37 @@
-// app/page.tsx
+//home/zyan/Coding/monarxstore/monarxstore/app/page.tsx
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import Link from "next/link";
 import { getFeaturedProducts, formatPrice } from "../lib/products";
 
+import { cookies } from "next/headers";
+import {
+  AUTH_COOKIE_NAME,
+  verifyAuthToken,
+  type AuthTokenPayload,
+} from "@/lib/auth";
+
 export default async function Home() {
+  // Cek user dari cookie auth
+  const cookieStore = await cookies();
+  const token = cookieStore.get(AUTH_COOKIE_NAME)?.value;
+
+  let currentUser: AuthTokenPayload | null = null;
+
+  if (token) {
+    try {
+      currentUser = await verifyAuthToken(token);
+    } catch {
+      currentUser = null;
+    }
+  }
+
   const featuredProducts = await getFeaturedProducts(6);
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
-      {/* TOP STRIP */}
-      <div className="border-b border-slate-200 bg-slate-50">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2 text-xs text-slate-500">
-          <nav className="flex gap-4">
-            <Link href="#" className="hover:text-slate-800">
-              For buyers
-            </Link>
-            <Link href="#" className="hover:text-slate-800">
-              For partners
-            </Link>
-            <Link href="#" className="hover:text-slate-800">
-              FAQ
-            </Link>
-            <Link href="#" className="hover:text-slate-800">
-              Support
-            </Link>
-          </nav>
-          <div className="flex items-center gap-3">
-            <button className="flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 text-[11px] hover:border-slate-300 hover:text-slate-700">
-              <span>RMB • ¥</span>
-            </button>
-            <button className="flex items-center gap-2 rounded-full bg-white px-2.5 py-1 text-[11px] shadow-sm hover:bg-slate-50">
-              <span className="inline-block h-3.5 w-3.5 rounded-full bg-red-500" />
-              <span>English</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* MAIN HEADER */}
+      {/* === MAIN HEADER (tanpa top strip) === */}
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
           {/* Logo */}
@@ -78,20 +70,108 @@ export default async function Home() {
             </div>
           </form>
 
-          {/* Auth */}
-          <div className="hidden items-center gap-2 md:flex">
-            <Link
-              href="/login"
-              className="rounded-full border border-slate-200 px-4 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/register"
-              className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-black"
-            >
-              Sign up
-            </Link>
+          {/* Right controls: currency, language, auth/profile */}
+          {/* Auth / Profile */}
+          <div className="hidden items-center gap-3 md:flex">
+            {/* Currency */}
+            <button className="flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 text-[11px] hover:border-slate-300 hover:text-slate-700">
+              <span>RMB • ¥</span>
+            </button>
+
+            {/* Language */}
+            <button className="flex items-center gap-2 rounded-full bg-white px-2.5 py-1 text-[11px] shadow-sm hover:bg-slate-50">
+              <span className="inline-block h-3.5 w-3.5 rounded-full bg-red-500" />
+              <span>English</span>
+            </button>
+
+            {currentUser ? (
+              <div className="relative">
+                <details className="group">
+                  <summary className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50 cursor-pointer list-none">
+                    {/* Avatar */}
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-[11px] font-semibold uppercase text-white">
+                      {(currentUser.name || currentUser.email).charAt(0)}
+                    </div>
+
+                    {/* Name */}
+                    <span className="max-w-[140px] truncate">
+                      {currentUser.name || currentUser.email}
+                    </span>
+
+                    <span className="text-[10px] text-slate-400">▾</span>
+                  </summary>
+
+                  {/* Dropdown */}
+                  <div className="absolute right-0 z-20 mt-2 w-44 rounded-2xl border border-slate-200 bg-white py-1 shadow-lg">
+                    <div className="px-3 pb-1 pt-1.5 text-[10px] text-slate-400">
+                      Signed in as
+                      <div className="truncate text-[11px] font-medium text-slate-800">
+                        {currentUser.email}
+                      </div>
+                    </div>
+
+                    <hr className="my-1 border-slate-100" />
+
+                    {/* Profile */}
+                    <Link
+                      href="/account"
+                      className="block px-3 py-1.5 text-[11px] text-slate-700 hover:bg-slate-50"
+                    >
+                      Profile / Edit profile
+                    </Link>
+
+                    {/* Order history (placeholder) */}
+                    <button
+                      type="button"
+                      disabled
+                      className="flex w-full items-center justify-between px-3 py-1.5 text-[11px] text-slate-400 hover:bg-slate-50"
+                    >
+                      Order history
+                      <span className="rounded-full bg-slate-100 px-1.5 text-[9px] uppercase">
+                        Soon
+                      </span>
+                    </button>
+
+                    {/* Admin panel */}
+                    {currentUser.isAdmin && (
+                      <Link
+                        href="/admin/products"
+                        className="block px-3 py-1.5 text-[11px] text-red-600 hover:bg-red-50"
+                      >
+                        Admin panel
+                      </Link>
+                    )}
+
+                    <hr className="my-1 border-slate-100" />
+
+                    {/* Logout */}
+                    <form action="/api/auth/logout" method="POST">
+                      <button
+                        type="submit"
+                        className="flex w-full items-center justify-between px-3 py-1.5 text-[11px] font-medium text-red-600 hover:bg-red-50"
+                      >
+                        Sign out
+                      </button>
+                    </form>
+                  </div>
+                </details>
+              </div>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="rounded-full border border-slate-200 px-4 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/register"
+                  className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-black"
+                >
+                  Sign up
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -372,8 +452,8 @@ export default async function Home() {
                         {i === 0
                           ? "ChatGPT Plus"
                           : i === 1
-                          ? "Claude Pro"
-                          : "Gemini Advanced"}
+                            ? "Claude Pro"
+                            : "Gemini Advanced"}
                       </span>
                       <span className="font-semibold text-red-600">
                         {i === 0 ? "$20" : "$25"}

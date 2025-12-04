@@ -1,4 +1,4 @@
-// app/products/page.tsx
+//home/zyan/Coding/monarxstore/monarxstore/app/products/page.tsx
 import Link from "next/link";
 import { getAllProducts, formatPrice } from "../../lib/products";
 

@@ -1,4 +1,4 @@
-// lib/orders.ts
+//home/zyan/Coding/monarxstore/monarxstore/lib/orders.ts
 import { prisma } from "./prisma";
 
 export type OrderStatus = "PENDING" | "PAID" | "FAILED";

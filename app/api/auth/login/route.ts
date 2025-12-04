@@ -50,8 +50,10 @@ export async function POST(request: Request) {
   const token = await createAuthToken({
     userId: user.id,
     email: user.email,
+    name: user.name ?? "",
     isAdmin: user.isAdmin,
   });
+
 
   const cookieStore = await cookies();
   cookieStore.set(AUTH_COOKIE_NAME, token, {

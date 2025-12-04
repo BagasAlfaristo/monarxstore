@@ -1,4 +1,4 @@
-// app/register/page.tsx
+//home/zyan/Coding/monarxstore/monarxstore/app/register/page.tsx
 import Link from "next/link";
 
 export default function RegisterPage() {

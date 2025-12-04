@@ -1,4 +1,4 @@
-// lib/prisma.ts
+//home/zyan/Coding/monarxstore/monarxstore/lib/prisma.ts
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pkg from "pg";

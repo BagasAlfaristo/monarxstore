@@ -1,4 +1,4 @@
-// lib/products.ts
+//home/zyan/Coding/monarxstore/monarxstore/lib/products.ts
 import { prisma } from "./prisma";
 import type { Product as PrismaProduct } from "@prisma/client";
 

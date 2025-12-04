@@ -1,4 +1,4 @@
-// app/api/admin/products/route.ts
+//home/zyan/Coding/monarxstore/monarxstore/app/api/admin/products/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 

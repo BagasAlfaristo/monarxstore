@@ -1,10 +1,11 @@
-// app/products/[slug]/page.tsx
+//home/zyan/Coding/monarxstore/monarxstore/app/products/[slug]/page.tsx
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProductBySlug, formatPrice } from "../../../lib/products";
+import { getCurrentUser } from "@/lib/auth";
 
 // params: Promise di Next 15
 type ProductPageProps = {
@@ -23,6 +24,8 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
   }
 
   const isOutOfStock = product.stock <= 0;
+  const currentUser = await getCurrentUser();
+  const isLoggedIn = !!currentUser;
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
@@ -100,7 +103,9 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
                 Checkout
               </p>
               <p className="mt-1 text-[11px] text-slate-600">
-                Masukkan email yang akan menerima akses / instruksi selanjutnya.
+                {isLoggedIn
+                  ? `Kami akan mengirim akses ke email akunmu (${currentUser!.email}).`
+                  : "Masukkan email yang akan menerima akses / instruksi selanjutnya."}
               </p>
 
               <form
@@ -121,23 +126,26 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
                   value={product.name}
                 />
 
-                <div className="space-y-1">
-                  <label
-                    htmlFor="email"
-                    className="block text-[11px] font-medium text-slate-800"
-                  >
-                    Email
-                  </label>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    required
-                    placeholder="you@example.com"
-                    className="w-full rounded-full border border-slate-300 px-3 py-2 text-xs text-slate-900 outline-none placeholder:text-slate-400 focus:border-red-500"
-                    disabled={isOutOfStock}
-                  />
-                </div>
+                {/* Hanya tampil kalau BELUM login (guest checkout) */}
+                {!isLoggedIn && (
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="email"
+                      className="block text-[11px] font-medium text-slate-800"
+                    >
+                      Email
+                    </label>
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      required
+                      placeholder="you@example.com"
+                      className="w-full rounded-full border border-slate-300 px-3 py-2 text-xs text-slate-900 outline-none placeholder:text-slate-400 focus:border-red-500"
+                      disabled={isOutOfStock}
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-1">
                   <label
@@ -146,6 +154,11 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
                   >
                     Notes (optional)
                   </label>
+                  <input
+                    type="hidden"
+                    name="isLoggedIn"
+                    value={isLoggedIn ? "true" : "false"}
+                  />
                   <textarea
                     id="notes"
                     name="notes"
