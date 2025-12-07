@@ -1,86 +1,44 @@
-// prisma/seed.ts
-import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-import pkg from "pg";
+import { PrismaClient } from '@prisma/client';
+import 'dotenv/config'; // Pastikan dotenv sudah ter-import untuk mengambil env variables
 
-const { Pool } = pkg;
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-const adapter = new PrismaPg(pool);
-
-const prisma = new PrismaClient({
-  adapter,
-  log: ["warn", "error"],
-});
+const prisma = new PrismaClient();
 
 async function main() {
-  console.log("🌱 Seeding products...");
-
-  // optional: kosongkan dulu
-  await prisma.product.deleteMany();
-
+  // Seed data produk dengan id manual
   await prisma.product.createMany({
     data: [
       {
-        slug: "chatgpt-plus",
-        name: "ChatGPT Plus 1 Month",
-        description:
-          "Premium access to ChatGPT Plus for 30 days. Fast responses & priority capacity.",
-        price: 200000,
-        currency: "IDR",
-        stock: 99,
-        imageUrl:
-          "https://images.pexels.com/photos/1181675/pexels-photo-1181675.jpeg?auto=compress&cs=tinysrgb&w=800",
-        featured: true,
+        id: 'prod-101', // ID manual
+        slug: 'product-ai-101',
+        name: 'AI Product 101',
+        description: 'A beginner AI product for learning purposes.',
+        price: 500,
+        currency: 'USD',
+        stock: 50,
+        imageUrl: 'https://example.com/product-ai-101.jpg',
+        createdAt: new Date('2025-01-01T10:00:00Z'),
+        updatedAt: new Date('2025-01-01T10:00:00Z'),
       },
       {
-        slug: "claude-pro",
-        name: "Claude Pro 1 Month",
-        description:
-          "Anthropic Claude Pro subscription for research and long-context analysis.",
-        price: 220000,
-        currency: "IDR",
-        stock: 42,
-        imageUrl:
-          "https://images.pexels.com/photos/1181243/pexels-photo-1181243.jpeg?auto=compress&cs=tinysrgb&w=800",
-        featured: true,
+        id: 'prod-102', // ID manual
+        slug: 'product-ai-102',
+        name: 'AI Product 102',
+        description: 'Intermediate AI product for tech enthusiasts.',
+        price: 1000,
+        currency: 'USD',
+        stock: 30,
+        imageUrl: 'https://example.com/product-ai-102.jpg',
+        createdAt: new Date('2025-01-02T10:00:00Z'),
+        updatedAt: new Date('2025-01-02T10:00:00Z'),
       },
-      {
-        slug: "gemini-advanced",
-        name: "Gemini Advanced 1 Month",
-        description:
-          "Google Gemini Advanced with strong Google ecosystem integration.",
-        price: 210000,
-        currency: "IDR",
-        stock: 33,
-        imageUrl:
-          "https://images.pexels.com/photos/1181671/pexels-photo-1181671.jpeg?auto=compress&cs=tinysrgb&w=800",
-        featured: true,
-      },
-      {
-        slug: "midjourney-plan",
-        name: "Midjourney Starter Plan",
-        description:
-          "Starter Midjourney image generation credits for creative projects.",
-        price: 150000,
-        currency: "IDR",
-        stock: 20,
-        imageUrl:
-          "https://images.pexels.com/photos/2706379/pexels-photo-2706379.jpeg?auto=compress&cs=tinysrgb&w=800",
-        featured: true,
-      },
+      // Tambahkan produk lain sesuai kebutuhan
     ],
   });
-
-  console.log("✅ Seed selesai — products inserted.");
 }
 
 main()
   .catch((e) => {
-    console.error("❌ Seed error:", e);
+    console.error(e);
     process.exit(1);
   })
   .finally(async () => {
