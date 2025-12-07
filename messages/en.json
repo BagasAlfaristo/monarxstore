@@ -1,0 +1,31 @@
+{
+  "app": {
+    "title": "Monarx AI Store",
+    "tagline": "Discover and purchase premium AI tools, prompts and automations."
+  },
+  "nav": {
+    "home": "Home",
+    "products": "Products",
+    "account": "My Account",
+    "admin": "Admin",
+    "login": "Login",
+    "register": "Register",
+    "logout": "Logout",
+    "language": {
+      "en": "English",
+      "zh": "中文"
+    },
+    "currency": {
+      "idr": "IDR",
+      "cny": "CNY"
+    }
+  },
+  "home": {
+    "welcome": {
+      "back": "Welcome back, {name}!",
+      "guest": "Welcome to Monarx AI Store"
+    },
+    "featured": "Featured products",
+    "viewAll": "View all products"
+  }
+}

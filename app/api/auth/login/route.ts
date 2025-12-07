@@ -13,15 +13,18 @@ export async function POST(request: Request) {
 
   let email = "";
   let password = "";
+  let redirectPath = "";
 
   if (contentType.includes("application/json")) {
     const body = await request.json();
     email = (body.email ?? "").toString().trim().toLowerCase();
     password = (body.password ?? "").toString();
+    redirectPath = (body.redirect ?? "").toString();
   } else {
     const formData = await request.formData();
     email = (formData.get("email") ?? "").toString().trim().toLowerCase();
     password = (formData.get("password") ?? "").toString();
+    redirectPath = (formData.get("redirect") ?? "").toString();
   }
 
   if (!email || !password) {
@@ -39,7 +42,7 @@ export async function POST(request: Request) {
     );
   }
 
-    const ok = await verifyPassword(password, user.passwordHash);
+  const ok = await verifyPassword(password, user.passwordHash);
   if (!ok) {
     return NextResponse.json(
       { error: "Email atau password salah" },
@@ -64,7 +67,26 @@ export async function POST(request: Request) {
     maxAge: 60 * 60 * 24 * 30,
   });
 
-  // kalau mau: kalau isAdmin redirect ke /admin/products
-  const redirectTo = user.isAdmin ? "/admin/products" : "/";
-  return NextResponse.redirect(new URL(redirectTo, request.url));
+  // sanitize redirect supaya nggak bisa ke domain luar
+  const url = new URL(request.url);
+  const safeRedirect =
+    redirectPath &&
+    redirectPath.startsWith("/") &&
+    !redirectPath.startsWith("//")
+      ? redirectPath
+      : "";
+
+  let redirectTo = "/";
+
+  if (safeRedirect) {
+    redirectTo = safeRedirect;
+  }
+
+  // admin tetap diarahkan ke panel admin
+  if (user.isAdmin) {
+    redirectTo = "/admin/products";
+  }
+
+  return NextResponse.redirect(new URL(redirectTo, url));
 }
+

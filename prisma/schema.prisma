@@ -15,6 +15,17 @@ enum OrderStatus {
   FAILED
 }
 
+enum ProductItemType {
+  ACCOUNT
+  CODE
+}
+
+enum PaymentMethod {
+  ALIPAY
+  WECHAT
+  MANUAL // optional: buat cadangan / bank transfer nanti
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -42,7 +53,8 @@ model Product {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  orders      Order[]
+  orders Order[]
+  items  ProductItem[]
 }
 
 model Order {
@@ -53,9 +65,36 @@ model Order {
   status      OrderStatus @default(PENDING)
   createdAt   DateTime    @default(now())
 
+  // snapshot harga saat order dibuat
+  amount        Int           @default(0)
+  currency      String        @default("USD")
+  paymentMethod PaymentMethod? @default(ALIPAY)
+
   product     Product     @relation(fields: [productSlug], references: [slug])
 
-  // relasi ke User (optional biar gak ganggu order lama)
   userId      String?
   user        User?       @relation(fields: [userId], references: [id])
+  items       ProductItem[]
+}
+
+
+model ProductItem {
+  id        String          @id @default(cuid())
+  product   Product         @relation(fields: [productId], references: [id])
+  productId String
+
+  type      ProductItemType
+  /// isi mentah akun / kode
+  /// contoh akun: "email@example.com;password123;note"
+  /// contoh kode: "CODE-123-ABC;note"
+  value     String
+  note      String?
+
+  isUsed    Boolean         @default(false)
+  usedAt    DateTime?
+
+  order     Order?          @relation(fields: [orderId], references: [id])
+  orderId   String?
+
+  createdAt DateTime        @default(now())
 }

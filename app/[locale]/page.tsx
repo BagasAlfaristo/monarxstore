@@ -1,25 +1,26 @@
-// app/page.tsx
+// app/[locale]/page.tsx
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import Link from "next/link";
 import { cookies } from "next/headers";
 
-import { getFeaturedProducts, formatPrice } from "../lib/products";
-import { countAvailableItemsByProduct } from "../lib/productItems";
+import { getFeaturedProducts, formatPrice } from "@/lib/products";
+import { countAvailableItemsByProduct } from "@/lib/productItems";
 import {
   AUTH_COOKIE_NAME,
   verifyAuthToken,
   type AuthTokenPayload,
 } from "@/lib/auth";
+import type { Locale } from "@/i18n";
 
-type UiCurrency = "IDR" | "CNY";
+type UiCurrency = "USD" | "CNY";
 type UiLanguage = "en" | "zh";
 
 interface HomePageProps {
+  params: Promise<{ locale: Locale }>;
   searchParams: Promise<{
     currency?: string;
-    lang?: string;
   }>;
 }
 
@@ -29,34 +30,76 @@ function formatPriceForUi(
   baseCurrency: string,
   uiCurrency: UiCurrency
 ): string {
-  if (uiCurrency === "IDR" || baseCurrency !== "IDR") {
-    return formatPrice(price, baseCurrency);
+  const usdFmt = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  });
+
+  const cnyFmt = new Intl.NumberFormat("zh-CN", {
+    style: "currency",
+    currency: "CNY",
+  });
+
+  // rate kasar, nanti bisa kamu pindah ke config / env
+  const RATE_IDR_TO_USD = 1 / 15500; // ± 1 USD = 15.500 IDR
+  const RATE_IDR_TO_CNY = 1 / 2200;  // ± 1 CNY = 2.200 IDR
+  const RATE_USD_TO_CNY = 7.1;       // ± 1 USD = 7.1 CNY
+
+  // 1) Base IDR (kondisi sekarang di DB kamu)
+  if (baseCurrency === "IDR") {
+    if (uiCurrency === "USD") {
+      const usd = price * RATE_IDR_TO_USD;
+      return usdFmt.format(usd);
+    }
+    // UI CNY
+    const cny = price * RATE_IDR_TO_CNY;
+    return cnyFmt.format(cny);
   }
 
-  // konversi kasar IDR → CNY (display saja)
-  const RATE_IDR_TO_CNY = 1 / 2200;
-  const inCny = Math.round(price * RATE_IDR_TO_CNY);
+  // 2) Base USD
+  if (baseCurrency === "USD") {
+    if (uiCurrency === "USD") {
+      return usdFmt.format(price);
+    }
+    const cny = price * RATE_USD_TO_CNY;
+    return cnyFmt.format(cny);
+  }
 
-  return `¥ ${inCny.toLocaleString("zh-CN")}`;
+  // 3) Base CNY
+  if (baseCurrency === "CNY") {
+    if (uiCurrency === "CNY") {
+      return cnyFmt.format(price);
+    }
+    const usd = price / RATE_USD_TO_CNY;
+    return usdFmt.format(usd);
+  }
+
+  // fallback kalau ada currency lain
+  return formatPrice(price, baseCurrency);
 }
 
-export default async function Home({ searchParams }: HomePageProps) {
-  // --- UI prefs dari query ---
-  const params = await searchParams;
-  const uiCurrency: UiCurrency = params.currency === "CNY" ? "CNY" : "IDR";
-  const uiLanguage: UiLanguage = params.lang === "zh" ? "zh" : "en";
+export default async function Home({ params, searchParams }: HomePageProps) {
+  // --- locale & query ---
+  const { locale } = await params;
+  const qs = await searchParams;
 
-  const makeUrl = (overrides: Partial<{ currency: string; lang: string }>) => {
-    const currency = overrides.currency ?? uiCurrency;
-    const lang = overrides.lang ?? uiLanguage;
-    const qs = new URLSearchParams();
-    if (currency) qs.set("currency", currency);
-    if (lang) qs.set("lang", lang);
-    const query = qs.toString();
-    return query ? `/?${query}` : "/";
+  const uiCurrency: UiCurrency = qs?.currency === "CNY" ? "CNY" : "USD";
+  const uiLanguage: UiLanguage = locale === "zh" ? "zh" : "en";
+
+  const makeUrl = (
+    overrides: Partial<{ currency: UiCurrency; locale: Locale }>
+  ) => {
+    const targetLocale = overrides.locale ?? locale;
+    const targetCurrency = overrides.currency ?? uiCurrency;
+
+    const sp = new URLSearchParams();
+    if (targetCurrency) sp.set("currency", targetCurrency);
+    const query = sp.toString();
+
+    return query ? `/${targetLocale}?${query}` : `/${targetLocale}`;
   };
 
-  // text dictionary
+  // text dictionary (base Inggris, zh = auto translate)
   const dict = {
     en: {
       heroBadge: "AI DIGITAL STORE",
@@ -98,9 +141,9 @@ export default async function Home({ searchParams }: HomePageProps) {
       ],
 
       featuredTitle: "Featured AI products",
-      featuredSubtitle:
-        "Products are loaded from the database. You control which ones are featured from the admin panel.",
-      featuredPriceHint: "Price display follows the currency selected at the top.",
+      //featuredSubtitle:
+      //"Products are loaded from the database. You control which ones are featured from the admin panel.",
+      //featuredPriceHint: "Price display follows the currency selected at the top.",
       featuredEmpty: "No products are marked as featured yet.",
 
       stockLabel: "Stock",
@@ -182,9 +225,9 @@ export default async function Home({ searchParams }: HomePageProps) {
       ],
 
       featuredTitle: "推荐 AI 商品",
-      featuredSubtitle:
-        "商品数据来自数据库，你可以在管理后台自由设置哪些商品展示在首页。",
-      featuredPriceHint: "价格展示会根据顶部选择的货币（IDR / CNY）自动切换。",
+      //featuredSubtitle:
+      //"商品数据来自数据库，你可以在管理后台自由设置哪些商品展示在首页。",
+      //featuredPriceHint: "价格展示会根据顶部选择的货币（USD / CNY）自动切换。",
       featuredEmpty: "暂时还没有被设置为推荐的商品。",
 
       stockLabel: "库存",
@@ -251,15 +294,15 @@ export default async function Home({ searchParams }: HomePageProps) {
   );
 
   const currencyLabel =
-    uiCurrency === "IDR" ? "IDR • Rp" : "CNY • ¥";
+    uiCurrency === "USD" ? "USD • $" : "CNY • ¥";
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
-      {/* HEADER */}
+      {/* HEADER / TOP BAR */}
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70">
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
           {/* Logo + brand */}
-          <Link href="/" className="flex items-center gap-2">
+          <Link href={makeUrl({})} className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-red-600 text-[11px] font-bold text-white">
               AI
             </div>
@@ -270,8 +313,8 @@ export default async function Home({ searchParams }: HomePageProps) {
 
           {/* Catalog button */}
           <Link
-            href="/products"
-            className="hidden items-center gap-2 rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 md:flex"
+            href={`/${locale}/products?currency=${uiCurrency}`}
+            className="hidden md:inline-flex min-w-[140px] flex-none items-center justify-center gap-2 rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 whitespace-nowrap"
           >
             <span className="inline-block h-3 w-3 rounded-[3px] border border-red-200" />
             AI Catalog
@@ -287,7 +330,7 @@ export default async function Home({ searchParams }: HomePageProps) {
               />
               <button
                 type="submit"
-                className="rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-500"
+                className="inline-flex w-20 items-center justify-center rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-500"
               >
                 Search
               </button>
@@ -299,46 +342,42 @@ export default async function Home({ searchParams }: HomePageProps) {
             {/* Currency toggle */}
             <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-1 py-1 text-[11px]">
               <Link
-                href={makeUrl({ currency: "IDR" })}
-                className={`rounded-full px-2 py-0.5 ${
-                  uiCurrency === "IDR"
-                    ? "bg-slate-900 text-white"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
+                href={makeUrl({ currency: "USD" })}
+                className={`rounded-full px-2 py-0.5 ${uiCurrency === "USD"
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-600 hover:bg-slate-100"
+                  }`}
               >
-                IDR
+                USD
               </Link>
               <Link
                 href={makeUrl({ currency: "CNY" })}
-                className={`rounded-full px-2 py-0.5 ${
-                  uiCurrency === "CNY"
-                    ? "bg-slate-900 text-white"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
+                className={`rounded-full px-2 py-0.5 ${uiCurrency === "CNY"
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-600 hover:bg-slate-100"
+                  }`}
               >
                 CNY
               </Link>
             </div>
 
-            {/* Language toggle */}
+            {/* Language toggle → pindah locale */}
             <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-1 py-1 text-[11px]">
               <Link
-                href={makeUrl({ lang: "en" })}
-                className={`rounded-full px-2 py-0.5 ${
-                  uiLanguage === "en"
-                    ? "bg-slate-900 text-white"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
+                href={makeUrl({ locale: "en" })}
+                className={`inline-flex w-10 items-center justify-center rounded-full px-2 py-0.5 ${uiLanguage === "en"
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-600 hover:bg-slate-100"
+                  }`}
               >
                 EN
               </Link>
               <Link
-                href={makeUrl({ lang: "zh" })}
-                className={`rounded-full px-2 py-0.5 ${
-                  uiLanguage === "zh"
-                    ? "bg-slate-900 text-white"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
+                href={makeUrl({ locale: "zh" })}
+                className={`inline-flex w-10 items-center justify-center rounded-full px-2 py-0.5 ${uiLanguage === "zh"
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-600 hover:bg-slate-100"
+                  }`}
               >
                 中文
               </Link>
@@ -369,7 +408,7 @@ export default async function Home({ searchParams }: HomePageProps) {
                     <hr className="my-1 border-slate-100" />
 
                     <Link
-                      href="/account"
+                      href={`/${locale}/account`}
                       className="block px-3 py-1.5 text-[11px] text-slate-700 hover:bg-slate-50"
                     >
                       {t.navProfile}
@@ -388,7 +427,7 @@ export default async function Home({ searchParams }: HomePageProps) {
 
                     {currentUser.isAdmin && (
                       <Link
-                        href="/admin/products"
+                        href={`/${locale}/admin/products`}
                         className="block px-3 py-1.5 text-[11px] text-red-600 hover:bg-red-50"
                       >
                         {t.navAdminPanel}
@@ -411,14 +450,14 @@ export default async function Home({ searchParams }: HomePageProps) {
             ) : (
               <>
                 <Link
-                  href="/login"
-                  className="rounded-full border border-slate-200 px-4 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  href={`/${locale}/login`}
+                  className="inline-flex w-20 items-center justify-center rounded-full border border-slate-200 px-4 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                 >
                   {t.navSignIn}
                 </Link>
                 <Link
-                  href="/register"
-                  className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-black"
+                  href={`/${locale}/register`}
+                  className="inline-flex w-20 items-center justify-center rounded-full bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-black"
                 >
                   {t.navSignUp}
                 </Link>
@@ -447,7 +486,7 @@ export default async function Home({ searchParams }: HomePageProps) {
               </p>
               <div className="mt-5 flex flex-wrap gap-3 text-xs">
                 <Link
-                  href="/products"
+                  href={`/${locale}/products?currency=${uiCurrency}`}
                   className="rounded-full bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-500"
                 >
                   {t.heroPrimaryCta}
@@ -528,15 +567,15 @@ export default async function Home({ searchParams }: HomePageProps) {
                 {t.featuredTitle}
               </h2>
               <p className="mt-1 text-xs text-slate-600">
-                {t.featuredSubtitle}
+                {/*  {t.featuredSubtitle} */}
               </p>
               <p className="mt-1 text-[10px] text-slate-400">
-                {t.featuredPriceHint}
+                {/*  {t.featuredPriceHint}*/}
               </p>
             </div>
             <Link
-              href="/products"
-              className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50"
+              href={`/${locale}/products?currency=${uiCurrency}`}
+              className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50 min-w-[120px]"
             >
               View all products
             </Link>
@@ -550,11 +589,11 @@ export default async function Home({ searchParams }: HomePageProps) {
                 const isOutOfStock = p.availableCount <= 0;
                 return (
                   <Link
-                    href={`/products/${p.slug}`}
+                    href={`/${locale}/products/${p.slug}?currency=${uiCurrency}`}
                     key={p.id}
-                    className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-red-300"
+                    className="flex h-full flex-col rounded-2xl border border-slate-300 bg-white p-4 shadow shadow-slate-200/50 transition hover:border-red-400"
                   >
-                    <div className="mb-3 overflow-hidden rounded-xl bg-slate-100">
+                    <div className="mb-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                       <div className="relative w-full aspect-[16/9]">
                         <img
                           src={p.imageUrl}

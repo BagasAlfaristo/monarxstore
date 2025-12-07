@@ -1,12 +1,12 @@
-//home/zyan/Coding/monarxstore/monarxstore/app/admin/orders/page.tsx
+// app/admin/orders/page.tsx
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-import Link from "next/link";
-import { getAllOrders } from "../../../lib/orders";
+
+import { getAllOrdersWithItems } from "../../../lib/orders";
 import { getProductBySlug, formatPrice } from "../../../lib/products";
 
 export default async function AdminOrdersPage() {
-  const orders = await getAllOrders();   // ← tambahin await
+  const orders = await getAllOrdersWithItems();
 
   const productsMap = new Map<
     string,
@@ -20,122 +20,183 @@ export default async function AdminOrdersPage() {
     }
   }
 
+  const getStatusBadge = (status: string) => {
+    if (status === "PAID") {
+      return (
+        <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+          PAID
+        </span>
+      );
+    }
+    if (status === "FAILED") {
+      return (
+        <span className="inline-flex rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
+          FAILED
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+        PENDING
+      </span>
+    );
+  };
+
+  const totalOrders = orders.length;
+  const paid = orders.filter((o) => o.status === "PAID").length;
+  const pending = orders.filter((o) => o.status === "PENDING").length;
+  const failed = orders.filter((o) => o.status === "FAILED").length;
+
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="mx-auto max-w-5xl px-4 py-8">
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <h1 className="text-lg font-semibold tracking-tight">
-            Admin · Orders
-          </h1>
-          <div className="flex gap-2">
-            <Link
-              href="/"
-              className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50"
-            >
-              Home
-            </Link>
-            <Link
-              href="/products"
-              className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50"
-            >
-              Products
-            </Link>
+      <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
+        {/* Header */}
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight">
+              Admin · Orders
+            </h1>
+            <p className="mt-1 text-xs text-slate-600">
+              Riwayat penjualan / order yang masuk.
+            </p>
           </div>
         </div>
 
-        {orders.length === 0 ? (
-          <p className="text-xs text-slate-500">
-            Belum ada order. Coba buat order dari halaman produk.
-          </p>
-        ) : (
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <table className="min-w-full border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] text-slate-500">
-                  <th className="px-3 py-2 text-left">Order ID</th>
-                  <th className="px-3 py-2 text-left">Created</th>
-                  <th className="px-3 py-2 text-left">Email</th>
-                  <th className="px-3 py-2 text-left">Product</th>
-                  <th className="px-3 py-2 text-left">Price</th>
-                  <th className="px-3 py-2 text-left">Status</th>
-                  <th className="px-3 py-2 text-left">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {orders.map((o) => {
-                  const p = productsMap.get(o.productSlug) ?? null;
-                  const isPending = o.status === "PENDING";
-                  return (
-                    <tr
-                      key={o.id}
-                      className="border-b border-slate-100 hover:bg-slate-50/70"
-                    >
-                      <td className="px-3 py-2 font-mono text-[11px] text-slate-700">
-                        {o.id}
-                      </td>
-                      <td className="px-3 py-2 text-[11px] text-slate-500">
-                        {o.createdAt.toLocaleString()}
-                      </td>
-                      <td className="px-3 py-2 text-[11px] text-slate-800">
-                        {o.email}
-                      </td>
-                      <td className="px-3 py-2 text-[11px] text-slate-800">
-                        {p ? p.name : o.productSlug}
-                      </td>
-                      <td className="px-3 py-2 text-[11px] text-slate-800">
-                        {p ? formatPrice(p.price, p.currency) : "-"}
-                      </td>
-                      <td className="px-3 py-2 text-[11px]">
-                        <span
-                          className={
-                            "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold " +
-                            (o.status === "PENDING"
-                              ? "bg-amber-50 text-amber-700 border border-amber-200"
-                              : o.status === "PAID"
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : "bg-red-50 text-red-700 border border-red-200")
-                          }
-                        >
-                          {o.status}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-[11px]">
-                        {isPending ? (
+        {/* Summary */}
+        <section className="grid gap-3 md:grid-cols-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-[11px] font-medium text-slate-600">Orders</p>
+            <p className="mt-2 text-2xl font-semibold">{totalOrders}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-[11px] font-medium text-slate-600">Paid</p>
+            <p className="mt-2 text-2xl font-semibold text-emerald-700">
+              {paid}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-[11px] font-medium text-slate-600">Pending</p>
+            <p className="mt-2 text-2xl font-semibold text-amber-700">
+              {pending}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-[11px] font-medium text-slate-600">Failed</p>
+            <p className="mt-2 text-2xl font-semibold text-rose-700">
+              {failed}
+            </p>
+          </div>
+        </section>
+
+        {/* Orders table */}
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-slate-800">
+              Order history
+            </h2>
+            <p className="text-[11px] text-slate-500">
+              Urutan terbaru di atas.
+            </p>
+          </div>
+
+          {orders.length === 0 ? (
+            <p className="text-xs text-slate-500">
+              Belum ada order. Coba buat order dari halaman produk.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-[11px] text-slate-600">
+                    <th className="p-2 text-left font-medium">Waktu</th>
+                    <th className="p-2 text-left font-medium">Produk</th>
+                    <th className="p-2 text-left font-medium">Email</th>
+                    <th className="p-2 text-left font-medium">Notes</th>
+                    <th className="p-2 text-right font-medium">Harga</th>
+                    <th className="p-2 text-left font-medium">Item</th>
+                    <th className="p-2 text-center font-medium">Status</th>
+                    <th className="p-2 text-right font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.map((order) => {
+                    const product = productsMap.get(order.productSlug);
+                    const firstItem = order.items[0];
+
+                    return (
+                      <tr
+                        key={order.id}
+                        className="border-b border-slate-100 hover:bg-slate-50/80"
+                      >
+                        <td className="p-2 align-middle text-[11px] text-slate-600">
+                          {new Date(order.createdAt).toLocaleString("id-ID", {
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          })}
+                        </td>
+                        <td className="p-2 align-middle">
+                          <div className="flex flex-col">
+                            <span className="text-[11px] font-semibold">
+                              {product?.name ?? order.productSlug}
+                            </span>
+                            <span className="mt-0.5 text-[10px] text-slate-500">
+                              {order.productSlug}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="p-2 align-middle text-[11px]">
+                          {order.email}
+                        </td>
+                        <td className="p-2 align-middle text-[10px] text-slate-600 max-w-[200px]">
+                          {order.notes || "-"}
+                        </td>
+                        <td className="p-2 align-middle text-right text-[11px]">
+                          {product
+                            ? formatPrice(product.price, product.currency)
+                            : "-"}
+                        </td>
+                        <td className="p-2 align-middle text-[10px] max-w-[220px] truncate font-mono text-slate-700">
+                          {firstItem ? firstItem.value : "-"}
+                        </td>
+                        <td className="p-2 align-middle text-center">
+                          {getStatusBadge(order.status)}
+                        </td>
+                        <td className="p-2 align-middle text-right">
                           <form
                             action="/api/payment/mock"
-                            method="POST"
-                            className="inline"
+                            method="post"
+                            className="inline-flex gap-1"
                           >
                             <input
                               type="hidden"
                               name="orderId"
-                              value={o.id}
+                              value={order.id}
                             />
-                            <input
-                              type="hidden"
+                            <select
                               name="status"
-                              value="PAID"
-                            />
+                              defaultValue={order.status}
+                              className="rounded-full border border-slate-300 bg-slate-50 px-2 py-1 text-[10px] outline-none"
+                            >
+                              <option value="PENDING">PENDING</option>
+                              <option value="PAID">PAID</option>
+                              <option value="FAILED">FAILED</option>
+                            </select>
                             <button
                               type="submit"
-                              className="rounded-full border border-emerald-500 px-3 py-1 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-50"
+                              className="rounded-full bg-slate-900 px-2 py-1 text-[10px] font-semibold text-white hover:bg-black"
                             >
-                              Mark as PAID
+                              Update
                             </button>
                           </form>
-                        ) : (
-                          <span className="text-[10px] text-slate-400">
-                            No actions
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </div>
     </main>
   );

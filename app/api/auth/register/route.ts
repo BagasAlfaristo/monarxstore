@@ -9,17 +9,20 @@ export async function POST(request: Request) {
   let email = "";
   let password = "";
   let name = "";
+  let redirectPath = "";
 
   if (contentType.includes("application/json")) {
     const body = await request.json();
     email = (body.email ?? "").toString().trim().toLowerCase();
     password = (body.password ?? "").toString();
     name = (body.name ?? "").toString().trim();
+    redirectPath = (body.redirect ?? "").toString();
   } else {
     const formData = await request.formData();
     email = (formData.get("email") ?? "").toString().trim().toLowerCase();
     password = (formData.get("password") ?? "").toString();
     name = (formData.get("name") ?? "").toString().trim();
+    redirectPath = (formData.get("redirect") ?? "").toString();
   }
 
   if (!email || !password) {
@@ -62,6 +65,19 @@ export async function POST(request: Request) {
   }
 
   // default: redirect ke halaman login untuk form biasa
-  const redirectUrl = new URL("/login?registered=1", request.url);
+  const redirectUrl = new URL("/login", request.url);
+  redirectUrl.searchParams.set("registered", "1");
+
+  const safeRedirect =
+    redirectPath &&
+      redirectPath.startsWith("/") &&
+      !redirectPath.startsWith("//")
+      ? redirectPath
+      : "";
+
+  if (safeRedirect) {
+    redirectUrl.searchParams.set("redirect", safeRedirect);
+  }
+
   return NextResponse.redirect(redirectUrl);
 }

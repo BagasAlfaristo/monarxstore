@@ -1,4 +1,4 @@
-//home/zyan/Coding/monarxstore/monarxstore/app/products/[slug]/page.tsx
+// app/products/[slug]/page.tsx
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -6,8 +6,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProductBySlug, formatPrice } from "../../../lib/products";
 import { getCurrentUser } from "@/lib/auth";
+import { countAvailableItemsByProduct } from "../../../lib/productItems";
 
-// params: Promise di Next 15
+// params: Promise di Next 15+
 type ProductPageProps = {
   params: Promise<{
     slug: string;
@@ -23,7 +24,10 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
     return notFound();
   }
 
-  const isOutOfStock = product.stock <= 0;
+  // 🔥 stok logis: jumlah ProductItem AVAILABLE
+  const availableItemCount = await countAvailableItemsByProduct(product.id);
+  const isOutOfStock = availableItemCount <= 0;
+
   const currentUser = await getCurrentUser();
   const isLoggedIn = !!currentUser;
 
@@ -83,7 +87,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
                 >
                   {isOutOfStock
                     ? "Out of stock"
-                    : `${product.stock} available`}
+                    : `${availableItemCount} available`}
                 </p>
               </div>
             </div>
@@ -125,16 +129,34 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
                   name="productName"
                   value={product.name}
                 />
+                <input
+                  type="hidden"
+                  name="isLoggedIn"
+                  value={isLoggedIn ? "true" : "false"}
+                />
 
-                {/* Hanya tampil kalau BELUM login (guest checkout) */}
-                {!isLoggedIn && (
-                  <div className="space-y-1">
-                    <label
-                      htmlFor="email"
-                      className="block text-[11px] font-medium text-slate-800"
-                    >
-                      Email
-                    </label>
+                {/* EMAIL */}
+                <div className="space-y-1">
+                  <label
+                    htmlFor="email"
+                    className="block text-[11px] font-medium text-slate-800"
+                  >
+                    Email
+                  </label>
+
+                  {isLoggedIn ? (
+                    <>
+                      {/* Kirim email user sebagai hidden input */}
+                      <input
+                        type="hidden"
+                        name="email"
+                        value={currentUser!.email || ""}
+                      />
+                      <p className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                        {currentUser!.email}
+                      </p>
+                    </>
+                  ) : (
                     <input
                       id="email"
                       name="email"
@@ -144,8 +166,8 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
                       className="w-full rounded-full border border-slate-300 px-3 py-2 text-xs text-slate-900 outline-none placeholder:text-slate-400 focus:border-red-500"
                       disabled={isOutOfStock}
                     />
-                  </div>
-                )}
+                  )}
+                </div>
 
                 <div className="space-y-1">
                   <label
@@ -154,11 +176,6 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
                   >
                     Notes (optional)
                   </label>
-                  <input
-                    type="hidden"
-                    name="isLoggedIn"
-                    value={isLoggedIn ? "true" : "false"}
-                  />
                   <textarea
                     id="notes"
                     name="notes"

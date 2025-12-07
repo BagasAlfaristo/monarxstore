@@ -1,0 +1,31 @@
+{
+  "app": {
+    "title": "Monarx AI 商店",
+    "tagline": "发现并购买高品质的 AI 工具、提示词和自动化方案。"
+  },
+  "nav": {
+    "home": "首页",
+    "products": "产品",
+    "account": "我的账户",
+    "admin": "管理后台",
+    "login": "登录",
+    "register": "注册",
+    "logout": "退出登录",
+    "language": {
+      "en": "English",
+      "zh": "中文"
+    },
+    "currency": {
+      "idr": "印尼盾",
+      "cny": "人民币"
+    }
+  },
+  "home": {
+    "welcome": {
+      "back": "欢迎回来，{name}！",
+      "guest": "欢迎来到 Monarx AI 商店"
+    },
+    "featured": "精选产品",
+    "viewAll": "查看全部产品"
+  }
+}
