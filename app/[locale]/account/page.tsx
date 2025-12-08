@@ -39,6 +39,7 @@ const dict = {
     profileName: "Name",
     profileRoleAdmin: "Admin",
     profileRoleUser: "User",
+
     ordersTitle: "My orders",
     ordersEmptyTitle: "No orders yet",
     ordersEmptyBody:
@@ -50,6 +51,15 @@ const dict = {
     orderStatusPending: "Pending",
     orderStatusPaid: "Paid",
     orderStatusFailed: "Failed",
+
+    ordersAmount: "Amount (snapshot)",
+    ordersPaymentMethod: "Payment method",
+    ordersItemsCount: "Delivered items",
+
+    paymentMethodAlipay: "Alipay",
+    paymentMethodWechat: "WeChat",
+    paymentMethodManual: "Manual",
+    paymentMethodUnknown: "Unknown",
   },
   zh: {
     searchPlaceholder: "搜索 AI 商品",
@@ -69,6 +79,7 @@ const dict = {
     profileName: "名称",
     profileRoleAdmin: "管理员",
     profileRoleUser: "普通用户",
+
     ordersTitle: "我的订单",
     ordersEmptyTitle: "暂时还没有订单",
     ordersEmptyBody: "使用当前邮箱创建的订单会出现在这里。",
@@ -79,6 +90,15 @@ const dict = {
     orderStatusPending: "待付款",
     orderStatusPaid: "已付款",
     orderStatusFailed: "失败",
+
+    ordersAmount: "金额（快照）",
+    ordersPaymentMethod: "支付方式",
+    ordersItemsCount: "已发货条目",
+
+    paymentMethodAlipay: "支付宝",
+    paymentMethodWechat: "微信支付",
+    paymentMethodManual: "人工/其他",
+    paymentMethodUnknown: "未知",
   },
 } as const;
 
@@ -88,7 +108,6 @@ export default async function AccountPage({
 }: AccountPageProps) {
   const { locale } = await params;
   const qs = await searchParams;
-
 
   const uiCurrency: UiCurrency = qs?.currency === "CNY" ? "CNY" : "USD";
   const uiLanguage: UiLanguage = locale === "zh" ? "zh" : "en";
@@ -104,25 +123,19 @@ export default async function AccountPage({
       section === "home"
         ? `/${targetLocale}`
         : section === "products"
-          ? `/${targetLocale}/products`
-          : section === "login"
-            ? `/${targetLocale}/login`
-            : section === "register"
-              ? `/${targetLocale}/register`
-              : `/${targetLocale}/account`;
+        ? `/${targetLocale}/products`
+        : section === "login"
+        ? `/${targetLocale}/login`
+        : section === "register"
+        ? `/${targetLocale}/register`
+        : `/${targetLocale}/account`;
 
     const sp = new URLSearchParams();
     if (targetCurrency) sp.set("currency", targetCurrency);
     if (q) sp.set("q", q);
 
-    const accountUrl = `/${locale}/account?currency=${uiCurrency}`;
-    const loginWithRedirect = `/${locale}/login?currency=${uiCurrency}&redirect=${encodeURIComponent(
-      accountUrl
-    )}`;
-
     const query = sp.toString();
     return query ? `${basePath}?${query}` : basePath;
-
   };
 
   const accountUrl = `/${locale}/account?currency=${uiCurrency}`;
@@ -169,14 +182,12 @@ export default async function AccountPage({
   // prefer pakai userId, fallback ke email (buat order lama).
   const orders = await prisma.order.findMany({
     where: {
-      OR: [
-        { userId: currentUser.id },
-        { email: currentUser.email },
-      ],
+      OR: [{ userId: currentUser.id }, { email: currentUser.email }],
     },
     orderBy: { createdAt: "desc" },
     include: {
       product: true,
+      items: true, // ⬅️ include items supaya bisa hitung jumlah delivered
     },
   });
 
@@ -187,12 +198,28 @@ export default async function AccountPage({
   };
 
   const statusClass = (status: string) => {
-    if (status === "PAID") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-    if (status === "FAILED") return "bg-red-50 text-red-700 border-red-200";
+    if (status === "PAID")
+      return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    if (status === "FAILED")
+      return "bg-red-50 text-red-700 border-red-200";
     return "bg-amber-50 text-amber-700 border-amber-200";
   };
 
-  const roleLabel = currentUser.isAdmin ? t.profileRoleAdmin : t.profileRoleUser;
+  const roleLabel = currentUser.isAdmin
+    ? t.profileRoleAdmin
+    : t.profileRoleUser;
+
+  const paymentMethodLabel = (method?: string | null) => {
+    if (method === "ALIPAY") return t.paymentMethodAlipay;
+    if (method === "WECHAT") return t.paymentMethodWechat;
+    if (method === "MANUAL") return t.paymentMethodManual;
+    return t.paymentMethodUnknown;
+  };
+
+  const formatAmount = (amount: number | null, currency?: string | null) => {
+    if (!amount || !currency) return "-";
+    return `${amount} ${currency}`;
+  };
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
@@ -246,19 +273,21 @@ export default async function AccountPage({
             <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-1 py-1 text-[11px]">
               <Link
                 href={makeUrl({ currency: "USD" })}
-                className={`rounded-full px-2 py-0.5 ${uiCurrency === "USD"
-                  ? "bg-slate-900 text-white"
-                  : "text-slate-600 hover:bg-slate-100"
-                  }`}
+                className={`rounded-full px-2 py-0.5 ${
+                  uiCurrency === "USD"
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
               >
                 USD
               </Link>
               <Link
                 href={makeUrl({ currency: "CNY" })}
-                className={`rounded-full px-2 py-0.5 ${uiCurrency === "CNY"
-                  ? "bg-slate-900 text-white"
-                  : "text-slate-600 hover:bg-slate-100"
-                  }`}
+                className={`rounded-full px-2 py-0.5 ${
+                  uiCurrency === "CNY"
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
               >
                 CNY
               </Link>
@@ -268,19 +297,21 @@ export default async function AccountPage({
             <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-1 py-1 text-[11px]">
               <Link
                 href={makeUrl({ locale: "en" })}
-                className={`inline-flex w-10 items-center justify-center rounded-full px-2 py-0.5 ${uiLanguage === "en"
-                  ? "bg-slate-900 text-white"
-                  : "text-slate-600 hover:bg-slate-100"
-                  }`}
+                className={`inline-flex w-10 items-center justify-center rounded-full px-2 py-0.5 ${
+                  uiLanguage === "en"
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
               >
                 EN
               </Link>
               <Link
                 href={makeUrl({ locale: "zh" })}
-                className={`inline-flex w-10 items-center justify-center rounded-full px-2 py-0.5 ${uiLanguage === "zh"
-                  ? "bg-slate-900 text-white"
-                  : "text-slate-600 hover:bg-slate-100"
-                  }`}
+                className={`inline-flex w-10 items-center justify-center rounded-full px-2 py-0.5 ${
+                  uiLanguage === "zh"
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
               >
                 中文
               </Link>
@@ -434,6 +465,22 @@ export default async function AccountPage({
                           }
                         >
                           {statusLabel(order.status)}
+                        </span>
+                      </p>
+                      <p className="text-[10px] text-slate-500">
+                        {t.ordersAmount}:{" "}
+                        <span className="font-mono">
+                          {formatAmount(order.amount, order.currency)}
+                        </span>
+                      </p>
+                      <p className="text-[10px] text-slate-500">
+                        {t.ordersPaymentMethod}:{" "}
+                        {paymentMethodLabel(order.paymentMethod)}
+                      </p>
+                      <p className="text-[10px] text-slate-500">
+                        {t.ordersItemsCount}:{" "}
+                        <span className="font-semibold">
+                          {order.items?.length ?? 0}
                         </span>
                       </p>
                     </div>

@@ -5,7 +5,7 @@ export const revalidate = 0;
 import Link from "next/link";
 import { cookies } from "next/headers";
 
-import { getFeaturedProducts, formatPrice } from "@/lib/products";
+import { getFeaturedProducts } from "@/lib/products";
 import { countAvailableItemsByProduct } from "@/lib/productItems";
 import {
   AUTH_COOKIE_NAME,
@@ -24,58 +24,30 @@ interface HomePageProps {
   }>;
 }
 
-// helper: format harga sesuai UI currency
-function formatPriceForUi(
-  price: number,
-  baseCurrency: string,
-  uiCurrency: UiCurrency
-): string {
+// helper: format harga dari base USD ke UI currency
+function formatPriceForUi(priceInUsd: number, uiCurrency: UiCurrency): string {
   const usdFmt = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
+    maximumFractionDigits: 2,
   });
 
   const cnyFmt = new Intl.NumberFormat("zh-CN", {
     style: "currency",
     currency: "CNY",
+    maximumFractionDigits: 2,
   });
 
   // rate kasar, nanti bisa kamu pindah ke config / env
-  const RATE_IDR_TO_USD = 1 / 15500; // ± 1 USD = 15.500 IDR
-  const RATE_IDR_TO_CNY = 1 / 2200;  // ± 1 CNY = 2.200 IDR
-  const RATE_USD_TO_CNY = 7.1;       // ± 1 USD = 7.1 CNY
+  const RATE_USD_TO_CNY = 7.1; // ± 1 USD = 7.1 CNY
 
-  // 1) Base IDR (kondisi sekarang di DB kamu)
-  if (baseCurrency === "IDR") {
-    if (uiCurrency === "USD") {
-      const usd = price * RATE_IDR_TO_USD;
-      return usdFmt.format(usd);
-    }
-    // UI CNY
-    const cny = price * RATE_IDR_TO_CNY;
-    return cnyFmt.format(cny);
+  if (uiCurrency === "USD") {
+    return usdFmt.format(priceInUsd);
   }
 
-  // 2) Base USD
-  if (baseCurrency === "USD") {
-    if (uiCurrency === "USD") {
-      return usdFmt.format(price);
-    }
-    const cny = price * RATE_USD_TO_CNY;
-    return cnyFmt.format(cny);
-  }
-
-  // 3) Base CNY
-  if (baseCurrency === "CNY") {
-    if (uiCurrency === "CNY") {
-      return cnyFmt.format(price);
-    }
-    const usd = price / RATE_USD_TO_CNY;
-    return usdFmt.format(usd);
-  }
-
-  // fallback kalau ada currency lain
-  return formatPrice(price, baseCurrency);
+  // UI CNY
+  const cny = priceInUsd * RATE_USD_TO_CNY;
+  return cnyFmt.format(cny);
 }
 
 export default async function Home({ params, searchParams }: HomePageProps) {
@@ -427,7 +399,7 @@ export default async function Home({ params, searchParams }: HomePageProps) {
 
                     {currentUser.isAdmin && (
                       <Link
-                        href={`/${locale}/admin/products`}
+                        href={`/admin/products`}
                         className="block px-3 py-1.5 text-[11px] text-red-600 hover:bg-red-50"
                       >
                         {t.navAdminPanel}
@@ -619,9 +591,8 @@ export default async function Home({ params, searchParams }: HomePageProps) {
                       </div>
 
                       <div className="mt-3 flex items-center justify-between text-[11px]">
-                        <span className="text-slate-500">{t.priceLabel}</span>
                         <span className="text-sm font-semibold text-red-600">
-                          {formatPriceForUi(p.price, p.currency, uiCurrency)}
+                          {formatPriceForUi(p.price, uiCurrency)}
                         </span>
                       </div>
 

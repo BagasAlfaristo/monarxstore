@@ -1,12 +1,10 @@
-//home/zyan/Coding/monarxstore/monarxstore/prisma/schema.prisma
-
+// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
-  // url diambil dari prisma.config.ts (PRISMA_DATABASE_URL)
 }
 
 enum OrderStatus {
@@ -23,7 +21,7 @@ enum ProductItemType {
 enum PaymentMethod {
   ALIPAY
   WECHAT
-  MANUAL // optional: buat cadangan / bank transfer nanti
+  MANUAL
 }
 
 model User {
@@ -44,37 +42,34 @@ model Product {
   slug        String   @unique
   name        String
   description String
-  price       Int
+  price       Float
   currency    String
-  stock       Int
   imageUrl    String
   featured    Boolean  @default(false)
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  orders Order[]
-  items  ProductItem[]
+  orders      Order[]
+  items       ProductItem[]
 }
 
 model Order {
-  id          String      @id @default(cuid())
-  productSlug String
-  email       String
-  notes       String?
-  status      OrderStatus @default(PENDING)
-  createdAt   DateTime    @default(now())
-
-  // snapshot harga saat order dibuat
+  id            String        @id @default(cuid())
+  productSlug   String
+  email         String
+  notes         String?
+  status        OrderStatus   @default(PENDING)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
   amount        Int           @default(0)
   currency      String        @default("USD")
   paymentMethod PaymentMethod? @default(ALIPAY)
 
-  product     Product     @relation(fields: [productSlug], references: [slug])
-
-  userId      String?
-  user        User?       @relation(fields: [userId], references: [id])
-  items       ProductItem[]
+  product       Product       @relation(fields: [productSlug], references: [slug])
+  userId        String?
+  user          User?         @relation(fields: [userId], references: [id])
+  items         ProductItem[]
 }
 
 model ProductItem {
@@ -83,9 +78,6 @@ model ProductItem {
   productId String
 
   type      ProductItemType
-  /// isi mentah akun / kode
-  /// contoh akun: "email@example.com;password123;note"
-  /// contoh kode: "CODE-123-ABC;note"
   value     String
   note      String?
 

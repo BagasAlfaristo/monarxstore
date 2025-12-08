@@ -4,7 +4,7 @@ export const revalidate = 0;
 
 import Link from "next/link";
 import { cookies } from "next/headers";
-
+import { getFeaturedProducts } from "@/lib/products";
 import { getAllProducts, formatPrice } from "@/lib/products";
 import { countAvailableItemsByProduct } from "@/lib/productItems";
 import {
@@ -25,52 +25,30 @@ interface ProductsPageProps {
   }>;
 }
 
-// helper: format harga sesuai UI currency (copy dari home)
-function formatPriceForUi(
-  price: number,
-  baseCurrency: string,
-  uiCurrency: UiCurrency
-): string {
+// helper: format harga dari base USD ke UI currency
+function formatPriceForUi(priceInUsd: number, uiCurrency: UiCurrency): string {
   const usdFmt = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
+    maximumFractionDigits: 2,
   });
 
   const cnyFmt = new Intl.NumberFormat("zh-CN", {
     style: "currency",
     currency: "CNY",
+    maximumFractionDigits: 2,
   });
 
-  const RATE_IDR_TO_USD = 1 / 15500;
-  const RATE_IDR_TO_CNY = 1 / 2200;
-  const RATE_USD_TO_CNY = 7.1;
+  // rate kasar, nanti bisa kamu pindah ke config / env
+  const RATE_USD_TO_CNY = 7.1; // ± 1 USD = 7.1 CNY
 
-  if (baseCurrency === "IDR") {
-    if (uiCurrency === "USD") {
-      const usd = price * RATE_IDR_TO_USD;
-      return usdFmt.format(usd);
-    }
-    const cny = price * RATE_IDR_TO_CNY;
-    return cnyFmt.format(cny);
+  if (uiCurrency === "USD") {
+    return usdFmt.format(priceInUsd);
   }
 
-  if (baseCurrency === "USD") {
-    if (uiCurrency === "USD") {
-      return usdFmt.format(price);
-    }
-    const cny = price * RATE_USD_TO_CNY;
-    return cnyFmt.format(cny);
-  }
-
-  if (baseCurrency === "CNY") {
-    if (uiCurrency === "CNY") {
-      return cnyFmt.format(price);
-    }
-    const usd = price / RATE_USD_TO_CNY;
-    return usdFmt.format(usd);
-  }
-
-  return formatPrice(price, baseCurrency);
+  // UI CNY
+  const cny = priceInUsd * RATE_USD_TO_CNY;
+  return cnyFmt.format(cny);
 }
 
 type MakeUrlOverrides = {
@@ -191,12 +169,12 @@ export default async function ProductsPage({
     searchQuery.length === 0
       ? productsWithStock
       : productsWithStock.filter((p) => {
-          const q = searchQuery.toLowerCase();
-          return (
-            p.name.toLowerCase().includes(q) ||
-            p.description.toLowerCase().includes(q)
-          );
-        });
+        const q = searchQuery.toLowerCase();
+        return (
+          p.name.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q)
+        );
+      });
 
   const currencyLabel =
     uiCurrency === "USD" ? t.currencyPrefixUsd : t.currencyPrefixCny;
@@ -256,21 +234,19 @@ export default async function ProductsPage({
             <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-1 py-1 text-[11px]">
               <Link
                 href={makeUrl({ currency: "USD" })}
-                className={`rounded-full px-2 py-0.5 ${
-                  uiCurrency === "USD"
+                className={`rounded-full px-2 py-0.5 ${uiCurrency === "USD"
                     ? "bg-slate-900 text-white"
                     : "text-slate-600 hover:bg-slate-100"
-                }`}
+                  }`}
               >
                 USD
               </Link>
               <Link
                 href={makeUrl({ currency: "CNY" })}
-                className={`rounded-full px-2 py-0.5 ${
-                  uiCurrency === "CNY"
+                className={`rounded-full px-2 py-0.5 ${uiCurrency === "CNY"
                     ? "bg-slate-900 text-white"
                     : "text-slate-600 hover:bg-slate-100"
-                }`}
+                  }`}
               >
                 CNY
               </Link>
@@ -280,21 +256,19 @@ export default async function ProductsPage({
             <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-1 py-1 text-[11px]">
               <Link
                 href={makeUrl({ locale: "en" })}
-                className={`inline-flex w-10 items-center justify-center rounded-full px-2 py-0.5 ${
-                  uiLanguage === "en"
+                className={`inline-flex w-10 items-center justify-center rounded-full px-2 py-0.5 ${uiLanguage === "en"
                     ? "bg-slate-900 text-white"
                     : "text-slate-600 hover:bg-slate-100"
-                }`}
+                  }`}
               >
                 EN
               </Link>
               <Link
                 href={makeUrl({ locale: "zh" })}
-                className={`inline-flex w-10 items-center justify-center rounded-full px-2 py-0.5 ${
-                  uiLanguage === "zh"
+                className={`inline-flex w-10 items-center justify-center rounded-full px-2 py-0.5 ${uiLanguage === "zh"
                     ? "bg-slate-900 text-white"
                     : "text-slate-600 hover:bg-slate-100"
-                }`}
+                  }`}
               >
                 中文
               </Link>
@@ -444,7 +418,7 @@ export default async function ProductsPage({
                       <div className="mt-3 flex items-center justify-between text-[11px]">
                         <span className="text-slate-500">{t.priceLabel}</span>
                         <span className="text-sm font-semibold text-red-600">
-                          {formatPriceForUi(p.price, p.currency, uiCurrency)}
+                          {formatPriceForUi(p.price, uiCurrency)}
                         </span>
                       </div>
 

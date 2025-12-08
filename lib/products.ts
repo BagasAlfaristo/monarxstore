@@ -1,4 +1,4 @@
-//home/zyan/Coding/monarxstore/monarxstore/lib/products.ts
+// lib/products.ts
 import { prisma } from "./prisma";
 import type { Product as PrismaProduct } from "@prisma/client";
 
@@ -27,29 +27,33 @@ export async function getProductBySlug(
 }
 
 export function formatPrice(price: number, currency: string): string {
-  if (currency === "IDR") {
-    return (
-      "Rp " +
-      price
-        .toString()
-        .replace(/\B(?=(\d{3})+(?!\d))/g, ".")
-    );
-  }
-  return `${currency} ${price}`;
+  const locale =
+    currency === "IDR"
+      ? "id-ID"
+      : currency === "CNY"
+        ? "zh-CN"
+        : "en-US";
+
+  const formatter = new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 2,
+  });
+
+  return formatter.format(price);
 }
 
-// ==== Admin helpers (dipakai route admin) ====
+// ==== Admin helpers ====
 
 export async function createProduct(data: {
-  slug: string;
   name: string;
+  slug: string;
   description: string;
   price: number;
   currency: string;
-  stock: number;
   imageUrl: string;
   featured?: boolean;
-}): Promise<Product> {
+}) {
   return prisma.product.create({
     data: {
       slug: data.slug,
@@ -57,9 +61,8 @@ export async function createProduct(data: {
       description: data.description,
       price: data.price,
       currency: data.currency,
-      stock: data.stock,
       imageUrl: data.imageUrl,
-      featured: !!data.featured,
+      featured: data.featured ?? false,
     },
   });
 }
@@ -67,16 +70,15 @@ export async function createProduct(data: {
 export async function updateProduct(
   id: string,
   data: {
-    slug?: string;
     name?: string;
+    slug?: string;
     description?: string;
     price?: number;
     currency?: string;
-    stock?: number;
     imageUrl?: string;
     featured?: boolean;
   }
-): Promise<Product> {
+) {
   return prisma.product.update({
     where: { id },
     data,

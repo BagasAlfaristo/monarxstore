@@ -8,6 +8,11 @@ import {
   sendOrderPaidEmail,
   sendDeliveryEmail,
 } from "./email";
+import type {
+  Order as PrismaOrder,
+  PaymentMethod,
+  ProductItem,
+} from "@prisma/client";
 
 export type OrderStatus = "PENDING" | "PAID" | "FAILED";
 
@@ -18,16 +23,15 @@ export type Order = {
   notes: string | null;
   status: OrderStatus;
   createdAt: Date;
+  updatedAt: Date;
+
+  // snapshot harga + metode bayar
+  amount: number; // integer, misal 15 = $15
+  currency: string; // "USD" | "CNY" | "IDR" | dll
+  paymentMethod: PaymentMethod | null;
 };
 
-function mapOrder(row: {
-  id: string;
-  productSlug: string;
-  email: string;
-  notes: string | null;
-  status: string;
-  createdAt: Date;
-}): Order {
+function mapOrder(row: PrismaOrder): Order {
   return {
     id: row.id,
     productSlug: row.productSlug,
@@ -35,20 +39,48 @@ function mapOrder(row: {
     notes: row.notes,
     status: row.status as OrderStatus,
     createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    amount: row.amount,
+    currency: row.currency,
+    paymentMethod: row.paymentMethod ?? null,
   };
 }
 
-// Create order baru
+// Create order baru + snapshot harga
 export async function createOrder(params: {
   productSlug: string;
   email: string;
   notes?: string;
+  paymentMethod?: PaymentMethod | "ALIPAY" | "WECHAT" | "MANUAL";
+  userId?: string | null;
 }): Promise<Order> {
+  const product = await prisma.product.findUnique({
+    where: { slug: params.productSlug },
+  });
+
+  if (!product) {
+    throw new Error(`Product with slug "${params.productSlug}" not found`);
+  }
+
+  // validasi userId kalau dikirim
+  let userId: string | undefined;
+  if (params.userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: params.userId },
+    });
+    if (user) userId = user.id;
+  }
+
   const row = await prisma.order.create({
     data: {
-      productSlug: params.productSlug,
+      productSlug: product.slug,
       email: params.email,
       notes: params.notes?.trim() || null,
+
+      amount: Math.round(product.price),
+      currency: product.currency,
+      paymentMethod: (params.paymentMethod as PaymentMethod) ?? "MANUAL",
+      userId,
     },
   });
 
@@ -71,48 +103,50 @@ export async function getAllOrders(): Promise<Order[]> {
   return rows.map(mapOrder);
 }
 
-// 🔴 INI BAGIAN PENTING: update status + assign item kalau PAID
-export async function updateOrderStatus(orderId: string, status: OrderStatus) {
-  // 1) Update status dulu
+// Update status + assign item kalau PAID
+export async function updateOrderStatus(
+  orderId: string,
+  status: OrderStatus
+): Promise<Order> {
+  // 1) update status di DB
   const updated = await prisma.order.update({
     where: { id: orderId },
-    data: { status },
+    data: { status: status as PrismaOrder["status"] },
   });
 
-  // 2) Kalau bukan PAID, nggak usah ambil item / kirim email
+  // kalau bukan PAID, selesai
   if (status !== "PAID") {
-    return updated;
+    return mapOrder(updated);
   }
 
-  // 3) Ambil order-nya lagi untuk baca productSlug
+  // 2) ambil ulang order utk baca productSlug
   const order = await prisma.order.findUnique({
     where: { id: orderId },
   });
 
   if (!order) {
-    return updated;
+    return mapOrder(updated);
   }
 
-  // 4) Cari product berdasarkan slug
+  // 3) cari product
   const product = await prisma.product.findUnique({
     where: { slug: order.productSlug },
   });
 
   if (!product) {
-    // kalau gak ketemu product, nggak bisa assign item
-    return updated;
+    return mapOrder(updated);
   }
 
-  // 5) Assign 1 item AVAILABLE ke order ini
+  // 4) assign satu item AVAILABLE ke order ini
   await assignFirstAvailableItemToOrder({
     productId: product.id,
     orderId: order.id,
   });
 
-  // 6) Ambil semua item yang sudah ter-assign ke order ini
+  // 5) ambil semua item di order ini
   const items = await getItemsByOrder(order.id);
 
-  // 7) Kirim email (dibungkus try/catch biar nggak ngerusak flow utama)
+  // 6) kirim email (dibungkus try/catch)
   try {
     const publicOrder = {
       id: order.id,
@@ -127,21 +161,19 @@ export async function updateOrderStatus(orderId: string, status: OrderStatus) {
       slug: product.slug,
     };
 
-    const publicItems = items.map((item) => ({
+    const publicItems = items.map((item: ProductItem) => ({
       id: item.id,
       type: item.type,
       value: item.value,
       note: item.note,
     }));
 
-    // Email 1: info bahwa pembayaran sukses
     await sendOrderPaidEmail({
       to: order.email,
       order: publicOrder,
       product: publicProduct,
     });
 
-    // Email 2: delivery item (kalau ada)
     if (publicItems.length > 0) {
       await sendDeliveryEmail({
         to: order.email,
@@ -154,7 +186,7 @@ export async function updateOrderStatus(orderId: string, status: OrderStatus) {
     console.error("[updateOrderStatus] gagal kirim email", err);
   }
 
-  return updated;
+  return mapOrder(updated);
 }
 
 // 1 order + items (buat order-success)
@@ -178,6 +210,22 @@ export async function getAllOrdersWithItems() {
   const rows = await prisma.order.findMany({
     orderBy: { createdAt: "desc" },
     include: {
+      items: true,
+    },
+  });
+
+  return rows;
+}
+
+// Semua order milik email tertentu + product + items (buat /account)
+export async function getOrdersWithItemsByEmail(email: string) {
+  if (!email) return [];
+
+  const rows = await prisma.order.findMany({
+    where: { email },
+    orderBy: { createdAt: "desc" },
+    include: {
+      product: true,
       items: true,
     },
   });

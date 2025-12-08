@@ -5,6 +5,7 @@ export const revalidate = 0;
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
+import { getFeaturedProducts } from "@/lib/products";
 
 import { getProductBySlug } from "@/lib/products";
 import { countAvailableItemsByProduct } from "@/lib/productItems";
@@ -35,50 +36,30 @@ type MakeUrlOverrides = {
   q?: string;
 };
 
-// helper: format harga sesuai UI currency
-function formatPriceForUi(
-  price: number,
-  baseCurrency: string,
-  uiCurrency: UiCurrency
-): string {
+// helper: format harga dari base USD ke UI currency
+function formatPriceForUi(priceInUsd: number, uiCurrency: UiCurrency): string {
   const usdFmt = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
+    maximumFractionDigits: 2,
   });
 
   const cnyFmt = new Intl.NumberFormat("zh-CN", {
     style: "currency",
     currency: "CNY",
+    maximumFractionDigits: 2,
   });
 
-  const RATE_IDR_TO_USD = 1 / 15500; // ± 1 USD = 15.500 IDR
-  const RATE_IDR_TO_CNY = 1 / 2200; // ± 1 CNY = 2.200 IDR
+  // rate kasar, nanti bisa kamu pindah ke config / env
   const RATE_USD_TO_CNY = 7.1; // ± 1 USD = 7.1 CNY
 
-
-  if (baseCurrency === "IDR") {
-    if (uiCurrency === "USD") {
-      const usd = price * RATE_IDR_TO_USD;
-      return usdFmt.format(usd);
-    }
-    const cny = price * RATE_IDR_TO_CNY;
-    return cnyFmt.format(cny);
+  if (uiCurrency === "USD") {
+    return usdFmt.format(priceInUsd);
   }
 
-  if (baseCurrency === "USD") {
-    if (uiCurrency === "USD") return usdFmt.format(price);
-    const cny = price * RATE_USD_TO_CNY;
-    return cnyFmt.format(cny);
-  }
-
-  if (baseCurrency === "CNY") {
-    if (uiCurrency === "CNY") return cnyFmt.format(price);
-    const usd = price / RATE_USD_TO_CNY;
-    return usdFmt.format(usd);
-  }
-
-  // fallback kalau someday ada currency lain
-  return `${price} ${baseCurrency}`;
+  // UI CNY
+  const cny = priceInUsd * RATE_USD_TO_CNY;
+  return cnyFmt.format(cny);
 }
 
 // text dictionary khusus page detail + header
@@ -430,11 +411,7 @@ export default async function ProductDetailPage({
                 <div>
                   <p className="text-xs text-slate-500">{t.priceLabel}</p>
                   <p className="text-xl font-semibold text-red-600">
-                    {formatPriceForUi(
-                      product.price,
-                      product.currency,
-                      uiCurrency
-                    )}
+                    {formatPriceForUi( product.price, uiCurrency)}
                   </p>
                   <p className="mt-1 text-[10px] text-slate-400">
                     {currencyLabel}

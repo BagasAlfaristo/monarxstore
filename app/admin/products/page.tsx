@@ -1,287 +1,322 @@
 // app/admin/products/page.tsx
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+import { getAllProducts } from "@/lib/products";
+import { countAvailableItemsByProduct } from "@/lib/productItems";
 
-import { getAllProducts, formatPrice } from "../../../lib/products";
-import { countAvailableItemsByProduct } from "../../../lib/productItems";
+interface AdminProductsPageProps {
+  searchParams: Promise<{
+    error?: string;
+    success?: string;
+  }>;
+}
 
-export default async function AdminProductsPage() {
+export default async function AdminProductsPage({
+  searchParams,
+}: AdminProductsPageProps) {
+  // ⬅️ WAJIB: unwarp Promise-nya dulu
+  const { error, success } = await searchParams;
+
   const products = await getAllProducts();
-
-  const productsWithItemStock = await Promise.all(
-    products.map(async (p) => ({
-      ...p,
-      itemStock: await countAvailableItemsByProduct(p.id),
-    }))
+  const productsWithStock = await Promise.all(
+    products.map(async (p) => {
+      const available = await countAvailableItemsByProduct(p.id);
+      return { ...p, available };
+    })
   );
 
+  const errorMessage =
+    error === "slug_taken"
+      ? "Slug already exists. Please use a different slug."
+      : error === "missing_fields"
+      ? "Please fill in all required fields (name, slug, price)."
+      : error === "missing_id"
+      ? "Missing product id."
+      : error === "invalid_mode"
+      ? "Invalid operation mode."
+      : error === "unknown"
+      ? "An unexpected error occurred while saving the product."
+      : null;
+
+  const successMessage =
+    success === "create"
+      ? "Product has been created."
+      : success === "update"
+      ? "Product has been updated."
+      : success === "delete"
+      ? "Product has been deleted."
+      : null;
+
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
-        {/* Create product form */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-800">
-            Tambah produk baru
-          </h2>
-          <p className="mt-1 text-[11px] text-slate-500">
-            Gunakan satu produk sebagai “paket” — misalnya{" "}
-            <span className="font-medium">Akun Netflix 1 Bulan</span>. Isi
-            akun/kode per stok dikelola di halaman{" "}
-            <span className="font-mono text-[10px]">Admin · Product Items</span>.
-          </p>
+    <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6">
+      <div>
+        <h1 className="text-lg font-semibold text-slate-900">
+          Products Management
+        </h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Create, edit and delete AI products. Stock is calculated from linked
+          product items.
+        </p>
+      </div>
 
-          <form
-            action="/api/admin/products"
-            method="post"
-            className="mt-4 grid gap-3 md:grid-cols-2"
-          >
-            {/* mode hidden */}
-            <input type="hidden" name="mode" value="create" />
+      {/* Alert messages */}
+      {errorMessage && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {errorMessage}
+        </div>
+      )}
+      {successMessage && !errorMessage && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          {successMessage}
+        </div>
+      )}
 
-            {/* stock diset 0 by default, stok real ngikut jumlah item */}
-            <input type="hidden" name="stock" value="0" />
+      {/* Create product */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h2 className="text-sm font-semibold text-slate-900">
+          Create new product
+        </h2>
+        <p className="mt-1 text-xs text-slate-500">
+          Minimum: name, slug, price. Currency default USD.
+        </p>
 
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-slate-700">
-                Nama produk
-              </label>
-              <input
-                name="name"
-                required
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs outline-none focus:border-slate-900"
-                placeholder="Contoh: Akun Netflix 1 Bulan"
-              />
-            </div>
+        <form
+          action="/api/admin/products"
+          method="POST"
+          className="mt-4 grid gap-3 md:grid-cols-2"
+        >
+          {/* mode */}
+          <input type="hidden" name="mode" value="create" />
 
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-slate-700">
-                Slug
-              </label>
-              <input
-                name="slug"
-                required
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs outline-none focus:border-slate-900"
-                placeholder="contoh: akun-netflix-1-bulan"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-slate-700">
-                Harga (IDR)
-              </label>
-              <input
-                name="price"
-                type="number"
-                min={0}
-                required
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs outline-none focus:border-slate-900"
-                placeholder="contoh: 35000"
-              />
-              <input type="hidden" name="currency" value="IDR" />
-            </div>
-
-            <div className="space-y-1 md:col-span-2">
-              <label className="text-[11px] font-medium text-slate-700">
-                Deskripsi singkat
-              </label>
-              <textarea
-                name="description"
-                rows={2}
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs outline-none focus:border-slate-900"
-                placeholder="Jelaskan tipe produk. Misal: berisi 1 akun (email;password;note) atau 1 redeem code (code;note)."
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-slate-700">
-                Image URL
-              </label>
-              <input
-                name="imageUrl"
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs outline-none focus:border-slate-900"
-                placeholder="https://..."
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-slate-700">
-                Featured
-              </label>
-              <select
-                name="featured"
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs outline-none focus:border-slate-900"
-                defaultValue="false"
-              >
-                <option value="false">Tidak</option>
-                <option value="true">Tampilkan di beranda</option>
-              </select>
-            </div>
-
-            <div className="md:col-span-2 flex justify-end">
-              <button
-                type="submit"
-                className="rounded-full bg-slate-900 px-4 py-2 text-[11px] font-semibold text-white hover:bg-black"
-              >
-                Simpan produk
-              </button>
-            </div>
-          </form>
-        </section>
-
-        {/* Products table */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold text-slate-800">
-              Daftar produk
-            </h2>
-            <p className="text-[11px] text-slate-500">
-              Total:{" "}
-              <span className="font-semibold">
-                {productsWithItemStock.length}
-              </span>
-            </p>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-700">
+              Name *
+            </label>
+            <input
+              name="name"
+              className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+              required
+            />
           </div>
 
-          {productsWithItemStock.length === 0 ? (
-            <p className="text-xs text-slate-500">
-              Belum ada produk. Tambahkan minimal satu produk terlebih dahulu.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-[11px] text-slate-600">
-                    <th className="p-2 text-left font-medium">Nama</th>
-                    <th className="p-2 text-left font-medium">Slug</th>
-                    <th className="p-2 text-right font-medium">Harga</th>
-                    <th className="p-2 text-right font-medium">
-                      Stock (items)
-                    </th>
-                    <th className="p-2 text-center font-medium">Featured</th>
-                    <th className="p-2 text-right font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {productsWithItemStock.map((product) => (
-                    <tr
-                      key={product.id}
-                      className="border-b border-slate-100 hover:bg-slate-50/80"
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-700">
+              Slug * (unique)
+            </label>
+            <input
+              name="slug"
+              className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+              required
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-700">
+              Price (base) *
+            </label>
+            <input
+              name="price"
+              type="number"
+              min="0"
+              step="0.01"
+              className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+              required
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-700">
+              Currency
+            </label>
+            <input
+              name="currency"
+              defaultValue="USD"
+              className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+            />
+          </div>
+
+          <div className="md:col-span-2 space-y-1">
+            <label className="text-xs font-medium text-slate-700">
+              Image URL
+            </label>
+            <input
+              name="imageUrl"
+              className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+            />
+          </div>
+
+          <div className="md:col-span-2 space-y-1">
+            <label className="text-xs font-medium text-slate-700">
+              Description
+            </label>
+            <textarea
+              name="description"
+              rows={3}
+              className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 md:col-span-2">
+            <input
+              id="featured-create"
+              type="checkbox"
+              name="featured"
+              value="true"
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            <label
+              htmlFor="featured-create"
+              className="text-xs text-slate-700"
+            >
+              Mark as featured
+            </label>
+          </div>
+
+          <div className="md:col-span-2">
+            <button
+              type="submit"
+              className="inline-flex rounded-full bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-black"
+            >
+              Save product
+            </button>
+          </div>
+        </form>
+      </section>
+
+      {/* Existing products */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h2 className="text-sm font-semibold text-slate-900">
+          Existing products
+        </h2>
+        <p className="mt-1 text-xs text-slate-500">
+          Quick edit inline. Stock is derived from unused product items.
+        </p>
+
+        {productsWithStock.length === 0 ? (
+          <p className="mt-3 text-xs text-slate-500">
+            No products created yet.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {productsWithStock.map((p) => (
+              <div
+                key={p.id}
+                className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-xs text-slate-500">
+                    <span className="font-semibold text-slate-800">
+                      {p.name}
+                    </span>{" "}
+                    · slug:{" "}
+                    <span className="font-mono text-[11px]">{p.slug}</span>{" "}
+                    · stock:{" "}
+                    <span className="font-semibold">
+                      {p.available} available
+                    </span>
+                  </div>
+                </div>
+
+                {/* EDIT FORM */}
+                <form
+                  action="/api/admin/products"
+                  method="POST"
+                  className="mt-3 grid gap-2 md:grid-cols-[2fr_2fr_1fr_1fr_auto]"
+                >
+                  <input type="hidden" name="mode" value="update" />
+                  <input type="hidden" name="id" value={p.id} />
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-slate-600">
+                      Name
+                    </label>
+                    <input
+                      name="name"
+                      defaultValue={p.name}
+                      className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-slate-600">
+                      Slug
+                    </label>
+                    <input
+                      name="slug"
+                      defaultValue={p.slug}
+                      className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-slate-600">
+                      Price
+                    </label>
+                    <input
+                      name="price"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      defaultValue={p.price}
+                      className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-slate-600">
+                      Currency
+                    </label>
+                    <input
+                      name="currency"
+                      defaultValue={p.currency}
+                      className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                    />
+                  </div>
+
+                  <div className="flex flex-col justify-between gap-1">
+                    <div className="flex items-center gap-1">
+                      <input
+                        id={`featured-${p.id}`}
+                        type="checkbox"
+                        name="featured"
+                        value="true"
+                        defaultChecked={p.featured}
+                        className="h-3 w-3 rounded border-slate-300"
+                      />
+                      <label
+                        htmlFor={`featured-${p.id}`}
+                        className="text-[11px] text-slate-600"
+                      >
+                        Featured
+                      </label>
+                    </div>
+                    <button
+                      type="submit"
+                      className="inline-flex items-center justify-center rounded-full bg-slate-900 px-3 py-1 text-[11px] font-medium text-white hover:bg-black"
                     >
-                      <td className="p-2 align-middle">
-                        <div className="flex flex-col">
-                          <span className="text-[11px] font-semibold">
-                            {product.name}
-                          </span>
-                          {product.description && (
-                            <span className="mt-0.5 line-clamp-2 text-[10px] text-slate-500">
-                              {product.description}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-2 align-middle text-[11px] text-slate-600">
-                        {product.slug}
-                      </td>
-                      <td className="p-2 align-middle text-right text-[11px]">
-                        {formatPrice(product.price, product.currency)}
-                      </td>
-                      <td className="p-2 align-middle text-right text-[11px]">
-                        {product.itemStock}
-                      </td>
-                      <td className="p-2 align-middle text-center text-[11px]">
-                        {product.featured ? (
-                          <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                            Featured
-                          </span>
-                        ) : (
-                          <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">
-                            Normal
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-2 align-middle text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* Form update (inline minimal) */}
-                          <form
-                            action="/api/admin/products"
-                            method="post"
-                            className="flex items-center gap-1.5"
-                          >
-                            <input type="hidden" name="mode" value="update" />
-                            <input type="hidden" name="id" value={product.id} />
-                            <input
-                              type="hidden"
-                              name="slug"
-                              defaultValue={product.slug}
-                            />
-                            <input
-                              type="hidden"
-                              name="name"
-                              defaultValue={product.name}
-                            />
-                            <input
-                              type="hidden"
-                              name="price"
-                              defaultValue={product.price}
-                            />
-                            <input
-                              type="hidden"
-                              name="currency"
-                              defaultValue={product.currency}
-                            />
-                            {/* stock tetap dikirim, tapi kita biarkan 0 / nilai lama */}
-                            <input
-                              type="hidden"
-                              name="stock"
-                              defaultValue={product.stock ?? 0}
-                            />
-                            <input
-                              type="hidden"
-                              name="imageUrl"
-                              defaultValue={product.imageUrl ?? ""}
-                            />
-                            <input
-                              type="hidden"
-                              name="description"
-                              defaultValue={product.description ?? ""}
-                            />
-                            <input
-                              type="hidden"
-                              name="featured"
-                              defaultValue={
-                                product.featured ? "true" : "false"
-                              }
-                            />
+                      Save
+                    </button>
+                  </div>
+                </form>
 
-                            <button
-                              type="submit"
-                              className="rounded-full border border-slate-300 px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
-                            >
-                              Save
-                            </button>
-                          </form>
-
-                          {/* Delete */}
-                          <form action="/api/admin/products" method="post">
-                            <input type="hidden" name="mode" value="delete" />
-                            <input type="hidden" name="id" value={product.id} />
-                            <button
-                              type="submit"
-                              className="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] font-semibold text-rose-700 hover:bg-rose-100"
-                            >
-                              Delete
-                            </button>
-                          </form>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      </div>
-    </main>
+                {/* DELETE FORM */}
+                <form
+                  action="/api/admin/products"
+                  method="POST"
+                  className="mt-2 flex justify-end"
+                >
+                  <input type="hidden" name="mode" value="delete" />
+                  <input type="hidden" name="id" value={p.id} />
+                  <button
+                    type="submit"
+                    className="text-[11px] text-red-600 hover:underline"
+                  >
+                    Delete product
+                  </button>
+                </form>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
   );
 }

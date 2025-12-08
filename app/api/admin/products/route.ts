@@ -1,6 +1,10 @@
-//home/zyan/Coding/monarxstore/monarxstore/app/api/admin/products/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "../../../../lib/prisma";
+import {
+  createProduct,
+  updateProduct,
+  deleteProduct,
+} from "@/lib/products";
+import { getCurrentUser } from "@/lib/auth";
 
 type AdminMode = "create" | "update" | "delete";
 
@@ -12,145 +16,134 @@ function getMode(formData: FormData): AdminMode | null {
   return null;
 }
 
+function getString(formData: FormData, key: string): string | undefined {
+  const v = formData.get(key);
+  if (typeof v !== "string") return undefined;
+  const trimmed = v.trim();
+  return trimmed === "" ? undefined : trimmed;
+}
+
+function getNumber(formData: FormData, key: string): number | undefined {
+  const v = getString(formData, key);
+  if (v === undefined) return undefined;
+  const num = Number(v);
+  if (Number.isNaN(num)) return undefined;
+  return num;
+}
+
+function getBoolean(formData: FormData, key: string): boolean | undefined {
+  const v = formData.get(key);
+  if (typeof v !== "string") return undefined;
+  if (v === "true") return true;
+  if (v === "false") return false;
+  return undefined;
+}
+
 export async function POST(req: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user || !user.isAdmin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const url = new URL(req.url);
+  const baseRedirectUrl = new URL("/admin/products", url.origin);
+
   const formData = await req.formData();
   const mode = getMode(formData);
 
   if (!mode) {
-    return NextResponse.json(
-      { error: "Invalid mode" },
-      { status: 400 }
-    );
+    const redirectUrl = new URL(baseRedirectUrl);
+    redirectUrl.searchParams.set("error", "invalid_mode");
+    return NextResponse.redirect(redirectUrl.toString(), { status: 303 });
   }
 
   try {
     if (mode === "create") {
-      const slug = formData.get("slug");
-      const name = formData.get("name");
-      const description = formData.get("description");
-      const priceRaw = formData.get("price");
-      const stockRaw = formData.get("stock");
-      const imageUrl = formData.get("imageUrl");
-      const featuredRaw = formData.get("featured");
+      const name = getString(formData, "name");
+      const slug = getString(formData, "slug");
+      const description = getString(formData, "description") ?? "";
+      const price = getNumber(formData, "price");
+      const currency = getString(formData, "currency") ?? "USD";
+      const imageUrl = getString(formData, "imageUrl") ?? "";
+      const featured = getBoolean(formData, "featured") ?? false;
 
-      if (
-        typeof slug !== "string" ||
-        typeof name !== "string" ||
-        typeof description !== "string" ||
-        typeof priceRaw !== "string" ||
-        typeof stockRaw !== "string" ||
-        typeof imageUrl !== "string"
-      ) {
-        return NextResponse.json(
-          { error: "Missing or invalid fields" },
-          { status: 400 }
-        );
+      if (!name || !slug || price === undefined) {
+        const redirectUrl = new URL(baseRedirectUrl);
+        redirectUrl.searchParams.set("error", "missing_fields");
+        return NextResponse.redirect(redirectUrl.toString(), { status: 303 });
       }
 
-      const price = Number(priceRaw);
-      const stock = Number(stockRaw);
-
-      if (!Number.isFinite(price) || !Number.isFinite(stock)) {
-        return NextResponse.json(
-          { error: "Price and stock must be numeric" },
-          { status: 400 }
-        );
-      }
-
-      const featured = featuredRaw != null;
-
-      await prisma.product.create({
-        data: {
-          slug,
-          name,
-          description,
-          price: Math.round(price),
-          currency: "IDR",
-          stock: Math.round(stock),
-          imageUrl,
-          featured,
-        },
+      await createProduct({
+        name,
+        slug,
+        description,
+        price,
+        currency,
+        imageUrl,
+        featured,
       });
     }
 
     if (mode === "update") {
-      const id = formData.get("id");
-      if (typeof id !== "string" || !id) {
-        return NextResponse.json(
-          { error: "Missing product id" },
-          { status: 400 }
-        );
+      const id = getString(formData, "id");
+      if (!id) {
+        const redirectUrl = new URL(baseRedirectUrl);
+        redirectUrl.searchParams.set("error", "missing_id");
+        return NextResponse.redirect(redirectUrl.toString(), { status: 303 });
       }
 
-      const priceRaw = formData.get("price");
-      const stockRaw = formData.get("stock");
-      const featuredValue = formData.get("featuredValue");
+      const data: Parameters<typeof updateProduct>[1] = {};
 
-      const data: {
-        price?: number;
-        stock?: number;
-        featured?: boolean;
-      } = {};
+      const name = getString(formData, "name");
+      if (name !== undefined) data.name = name;
 
-      if (typeof priceRaw === "string" && priceRaw !== "") {
-        const price = Number(priceRaw);
-        if (!Number.isFinite(price)) {
-          return NextResponse.json(
-            { error: "Price must be numeric" },
-            { status: 400 }
-          );
-        }
-        data.price = Math.round(price);
-      }
+      const slug = getString(formData, "slug");
+      if (slug !== undefined) data.slug = slug;
 
-      if (typeof stockRaw === "string" && stockRaw !== "") {
-        const stock = Number(stockRaw);
-        if (!Number.isFinite(stock)) {
-          return NextResponse.json(
-            { error: "Stock must be numeric" },
-            { status: 400 }
-          );
-        }
-        data.stock = Math.round(stock);
-      }
+      const description = getString(formData, "description");
+      if (description !== undefined) data.description = description;
 
-      if (typeof featuredValue === "string") {
-        data.featured = featuredValue === "true";
-      }
+      const price = getNumber(formData, "price");
+      if (price !== undefined) data.price = price;
 
-      if (Object.keys(data).length === 0) {
-        // tidak ada perubahan, langsung redirect saja
-      } else {
-        await prisma.product.update({
-          where: { id },
-          data,
-        });
-      }
+      const currency = getString(formData, "currency");
+      if (currency !== undefined) data.currency = currency;
+
+      const imageUrl = getString(formData, "imageUrl");
+      if (imageUrl !== undefined) data.imageUrl = imageUrl;
+
+      // ⬇️ perbedaan di sini
+      const featured = getBoolean(formData, "featured") ?? false;
+      data.featured = featured;
+
+      await updateProduct(id, data);
     }
 
     if (mode === "delete") {
-      const id = formData.get("id");
-      if (typeof id !== "string" || !id) {
-        return NextResponse.json(
-          { error: "Missing product id" },
-          { status: 400 }
-        );
+      const id = getString(formData, "id");
+      if (!id) {
+        const redirectUrl = new URL(baseRedirectUrl);
+        redirectUrl.searchParams.set("error", "missing_id");
+        return NextResponse.redirect(redirectUrl.toString(), { status: 303 });
       }
 
-      await prisma.product.delete({
-        where: { id },
-      });
+      await deleteProduct(id);
     }
 
-    // Sukses -> redirect balik ke /admin/products
-    const url = new URL(req.url);
-    const redirectUrl = new URL("/admin/products", url.origin);
-    return NextResponse.redirect(redirectUrl);
-  } catch (error) {
-    console.error("Admin products error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    const redirectUrl = new URL(baseRedirectUrl);
+    redirectUrl.searchParams.set("success", mode);
+    return NextResponse.redirect(redirectUrl.toString(), { status: 303 });
+  } catch (err: any) {
+    console.error("[/api/admin/products] error", err);
+
+    const redirectUrl = new URL(baseRedirectUrl);
+
+    if (err && typeof err === "object" && err.code === "P2002") {
+      redirectUrl.searchParams.set("error", "slug_taken");
+    } else {
+      redirectUrl.searchParams.set("error", "unknown");
+    }
+
+    return NextResponse.redirect(redirectUrl.toString(), { status: 303 });
   }
 }
